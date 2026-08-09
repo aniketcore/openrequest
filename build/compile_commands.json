@@ -1,0 +1,8 @@
+[
+{
+  "directory": "/home/aniket/Desktop/server-project/build",
+  "command": "/usr/bin/g++ -g -std=gnu++17 -o CMakeFiles/my_program.dir/main.cpp.o -c /home/aniket/Desktop/server-project/main.cpp",
+  "file": "/home/aniket/Desktop/server-project/main.cpp",
+  "output": "/home/aniket/Desktop/server-project/build/CMakeFiles/my_program.dir/main.cpp.o"
+}
+]

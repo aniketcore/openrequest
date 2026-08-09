@@ -1,0 +1,3 @@
+/home/aniket/Desktop/server-project/build/CMakeFiles/my_program.dir
+/home/aniket/Desktop/server-project/build/CMakeFiles/edit_cache.dir
+/home/aniket/Desktop/server-project/build/CMakeFiles/rebuild_cache.dir
