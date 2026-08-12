@@ -97,6 +97,7 @@ void tabwindow()
             else
             {
                 ImGui::Text("No draw function specified for this tab.");
+                
             }
         }
         else
