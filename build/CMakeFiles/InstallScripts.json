@@ -1,7 +1,9 @@
 {
 	"InstallScripts" : 
 	[
-		"/home/aniket/Desktop/server-project/build/cmake_install.cmake"
+		"/home/aniket/Desktop/server-project-testingg/build/cmake_install.cmake",
+		"/home/aniket/Desktop/server-project-testingg/build/binary_dir/cmake_install.cmake",
+		"/home/aniket/Desktop/server-project-testingg/build/binary_dir/src/cmake_install.cmake"
 	],
 	"Parallel" : false
 }

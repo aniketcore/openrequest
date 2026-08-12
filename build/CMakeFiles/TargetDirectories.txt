@@ -1,3 +1,9 @@
-/home/aniket/Desktop/server-project/build/CMakeFiles/my_program.dir
-/home/aniket/Desktop/server-project/build/CMakeFiles/edit_cache.dir
-/home/aniket/Desktop/server-project/build/CMakeFiles/rebuild_cache.dir
+/home/aniket/Desktop/server-project-testingg/build/CMakeFiles/example_glfw_vulkan.dir
+/home/aniket/Desktop/server-project-testingg/build/CMakeFiles/edit_cache.dir
+/home/aniket/Desktop/server-project-testingg/build/CMakeFiles/rebuild_cache.dir
+/home/aniket/Desktop/server-project-testingg/build/binary_dir/CMakeFiles/edit_cache.dir
+/home/aniket/Desktop/server-project-testingg/build/binary_dir/CMakeFiles/rebuild_cache.dir
+/home/aniket/Desktop/server-project-testingg/build/binary_dir/src/CMakeFiles/glfw.dir
+/home/aniket/Desktop/server-project-testingg/build/binary_dir/src/CMakeFiles/update_mappings.dir
+/home/aniket/Desktop/server-project-testingg/build/binary_dir/src/CMakeFiles/edit_cache.dir
+/home/aniket/Desktop/server-project-testingg/build/binary_dir/src/CMakeFiles/rebuild_cache.dir
