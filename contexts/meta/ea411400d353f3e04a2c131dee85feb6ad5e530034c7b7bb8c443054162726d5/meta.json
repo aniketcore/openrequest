@@ -1,0 +1,1 @@
+{"Name":"podman-Podman","Metadata":{"Description":"Podman machine Podman"},"Endpoints":{"docker":{"Host":"unix:///run/user/1000/podman/podman.sock"}}}

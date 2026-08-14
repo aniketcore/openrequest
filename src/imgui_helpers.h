@@ -20,6 +20,8 @@
 #pragma comment(lib, "legacy_stdio_definitions")
 #endif
 
+namespace UI::Vulkan
+{
 //#define APP_USE_UNLIMITED_FRAME_RATE
 #ifdef _DEBUG
 #define APP_USE_VULKAN_DEBUG_REPORT
@@ -40,11 +42,11 @@ static ImGui_ImplVulkanH_Window g_MainWindowData;
 static uint32_t                 g_MinImageCount = 2;
 static bool                     g_SwapChainRebuild = false;
 
-static void glfw_error_callback(int error, const char* description)
+static void GlfwErrorCallback(int error, const char* description)
 {
     fprintf(stderr, "GLFW Error %d: %s\n", error, description);
 }
-static void check_vk_result(VkResult err)
+static void CheckVkResult(VkResult err)
 {
     if (err == VK_SUCCESS)
         return;
@@ -54,7 +56,7 @@ static void check_vk_result(VkResult err)
 }
 
 #ifdef APP_USE_VULKAN_DEBUG_REPORT
-static VKAPI_ATTR VkBool32 VKAPI_CALL debug_report(VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT objectType, uint64_t object, size_t location, int32_t messageCode, const char* pLayerPrefix, const char* pMessage, void* pUserData)
+static VKAPI_ATTR VkBool32 VKAPI_CALL DebugReport(VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT objectType, uint64_t object, size_t location, int32_t messageCode, const char* pLayerPrefix, const char* pMessage, void* pUserData)
 {
     (void)flags; (void)object; (void)location; (void)messageCode; (void)pUserData; (void)pLayerPrefix; // Unused arguments
     fprintf(stderr, "[vulkan] Debug report from ObjectType: %i\nMessage: %s\n\n", objectType, pMessage);
@@ -88,7 +90,7 @@ static void SetupVulkan(ImVector<const char*> instance_extensions)
         vkEnumerateInstanceExtensionProperties(nullptr, &properties_count, nullptr);
         properties.resize(properties_count);
         err = vkEnumerateInstanceExtensionProperties(nullptr, &properties_count, properties.Data);
-        check_vk_result(err);
+        CheckVkResult(err);
 
         // Enable required extensions
         if (IsExtensionAvailable(properties, VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME))
@@ -113,7 +115,7 @@ static void SetupVulkan(ImVector<const char*> instance_extensions)
         create_info.enabledExtensionCount = (uint32_t)instance_extensions.Size;
         create_info.ppEnabledExtensionNames = instance_extensions.Data;
         err = vkCreateInstance(&create_info, g_Allocator, &g_Instance);
-        check_vk_result(err);
+        CheckVkResult(err);
 #ifdef IMGUI_IMPL_VULKAN_USE_VOLK
         volkLoadInstance(g_Instance);
 #endif
@@ -125,10 +127,10 @@ static void SetupVulkan(ImVector<const char*> instance_extensions)
         VkDebugReportCallbackCreateInfoEXT debug_report_ci = {};
         debug_report_ci.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT;
         debug_report_ci.flags = VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT | VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT;
-        debug_report_ci.pfnCallback = debug_report;
+        debug_report_ci.pfnCallback = DebugReport;
         debug_report_ci.pUserData = nullptr;
         err = f_vkCreateDebugReportCallbackEXT(g_Instance, &debug_report_ci, g_Allocator, &g_DebugReport);
-        check_vk_result(err);
+        CheckVkResult(err);
 #endif
     }
 
@@ -169,7 +171,7 @@ static void SetupVulkan(ImVector<const char*> instance_extensions)
         create_info.enabledExtensionCount = (uint32_t)device_extensions.Size;
         create_info.ppEnabledExtensionNames = device_extensions.Data;
         err = vkCreateDevice(g_PhysicalDevice, &create_info, g_Allocator, &g_Device);
-        check_vk_result(err);
+        CheckVkResult(err);
         vkGetDeviceQueue(g_Device, g_QueueFamily, 0, &g_Queue);
     }
 
@@ -190,7 +192,7 @@ static void SetupVulkan(ImVector<const char*> instance_extensions)
         pool_info.poolSizeCount = (uint32_t)IM_COUNTOF(pool_sizes);
         pool_info.pPoolSizes = pool_sizes;
         err = vkCreateDescriptorPool(g_Device, &pool_info, g_Allocator, &g_DescriptorPool);
-        check_vk_result(err);
+        CheckVkResult(err);
     }
 }
 
@@ -257,24 +259,24 @@ static void FrameRender(ImGui_ImplVulkanH_Window* wd, ImDrawData* draw_data)
     if (err == VK_ERROR_OUT_OF_DATE_KHR)
         return;
     if (err != VK_SUBOPTIMAL_KHR)
-        check_vk_result(err);
+        CheckVkResult(err);
 
     ImGui_ImplVulkanH_Frame* fd = &wd->Frames[wd->FrameIndex];
     {
         err = vkWaitForFences(g_Device, 1, &fd->Fence, VK_TRUE, UINT64_MAX);    // wait indefinitely instead of periodically checking
-        check_vk_result(err);
+        CheckVkResult(err);
 
         err = vkResetFences(g_Device, 1, &fd->Fence);
-        check_vk_result(err);
+        CheckVkResult(err);
     }
     {
         err = vkResetCommandPool(g_Device, fd->CommandPool, 0);
-        check_vk_result(err);
+        CheckVkResult(err);
         VkCommandBufferBeginInfo info = {};
         info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
         info.flags |= VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
         err = vkBeginCommandBuffer(fd->CommandBuffer, &info);
-        check_vk_result(err);
+        CheckVkResult(err);
     }
     {
         VkRenderPassBeginInfo info = {};
@@ -306,9 +308,9 @@ static void FrameRender(ImGui_ImplVulkanH_Window* wd, ImDrawData* draw_data)
         info.pSignalSemaphores = &render_complete_semaphore;
 
         err = vkEndCommandBuffer(fd->CommandBuffer);
-        check_vk_result(err);
+        CheckVkResult(err);
         err = vkQueueSubmit(g_Queue, 1, &info, fd->Fence);
-        check_vk_result(err);
+        CheckVkResult(err);
     }
 }
 
@@ -330,13 +332,13 @@ static void FramePresent(ImGui_ImplVulkanH_Window* wd)
     if (err == VK_ERROR_OUT_OF_DATE_KHR)
         return;
     if (err != VK_SUBOPTIMAL_KHR)
-        check_vk_result(err);
+        CheckVkResult(err);
     wd->SemaphoreIndex = (wd->SemaphoreIndex + 1) % wd->SemaphoreCount; // Now we can use the next set of semaphores
 }
 
-static GLFWwindow* InitWindowAndBackends(float* out_scale) 
+static GLFWwindow* Initialize(float* out_scale) 
 {
-    glfwSetErrorCallback(glfw_error_callback);
+    glfwSetErrorCallback(GlfwErrorCallback);
     if (!glfwInit())
         return nullptr;
 
@@ -368,7 +370,7 @@ static GLFWwindow* InitWindowAndBackends(float* out_scale)
     // Create Window Surface & Swapchain
     VkSurfaceKHR surface;
     VkResult err = glfwCreateWindowSurface(g_Instance, window, g_Allocator, &surface);
-    check_vk_result(err);
+    CheckVkResult(err);
 
     int w, h;
     glfwGetFramebufferSize(window, &w, &h);
@@ -402,14 +404,14 @@ static GLFWwindow* InitWindowAndBackends(float* out_scale)
     init_info.PipelineInfoMain.RenderPass = g_MainWindowData.RenderPass;
     init_info.PipelineInfoMain.Subpass = 0;
     init_info.PipelineInfoMain.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
-    init_info.CheckVkResultFn = check_vk_result;
+    init_info.CheckVkResultFn = CheckVkResult;
     ImGui_ImplVulkan_Init(&init_info);
 
     return window;
 }
 
 // Handles window resize and swapchain updates
-static void HandleSwapchainResize(GLFWwindow* window) 
+static void HandleResize(GLFWwindow* window) 
 {
     int fb_width, fb_height;
     glfwGetFramebufferSize(window, &fb_width, &fb_height);
@@ -439,10 +441,10 @@ static void RenderFrame(ImDrawData* draw_data, const ImVec4& clear_color)
 }
 
 // Teardown helper
-static void CleanupBackends(GLFWwindow* window) 
+static void Cleanup(GLFWwindow* window) 
 {
     VkResult err = vkDeviceWaitIdle(g_Device);
-    check_vk_result(err);
+    CheckVkResult(err);
     ImGui_ImplVulkan_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
@@ -453,3 +455,4 @@ static void CleanupBackends(GLFWwindow* window)
     glfwDestroyWindow(window);
     glfwTerminate();
 }
+} // namespace UI::Vulkan
