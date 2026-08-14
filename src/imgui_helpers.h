@@ -349,7 +349,7 @@ static GLFWwindow* Initialize(float* out_scale)
     GLFWwindow* window = glfwCreateWindow(
         static_cast<int>(1280 * main_scale), 
         static_cast<int>(800 * main_scale), 
-        "openreqest", 
+        "openrequest", 
         nullptr, 
         nullptr
     );
