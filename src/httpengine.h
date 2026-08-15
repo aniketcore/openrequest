@@ -35,7 +35,11 @@ namespace HTTP
         {
             auto *response = static_cast<Response *>(userdata);
 
-            response->body.append(ptr, size * nmemb);
+            if (!response->body.has_value())
+            {
+                response->body = std::string();
+            }
+            response->body->append(ptr, size * nmemb);
 
             return size * nmemb;
         }
@@ -88,7 +92,7 @@ namespace HTTP
 
             CURLcode result = curl_global_init(CURL_GLOBAL_ALL);
             if (result != CURLE_OK)
-                return {"sdfa"};
+                return Response();
 
             curl = curl_easy_init();
             Response response;

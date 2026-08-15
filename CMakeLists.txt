@@ -27,10 +27,11 @@ include_directories(${IMGUI_DIR} ${IMGUI_DIR}/backends ..)
 
 # Libraries
 find_package(Vulkan REQUIRED)
+find_package(Freetype REQUIRED)
 #find_library(VULKAN_LIBRARY
   #NAMES vulkan vulkan-1)
 #set(LIBRARIES "glfw;${VULKAN_LIBRARY}")
-set(LIBRARIES "glfw;Vulkan::Vulkan" curl)
+set(LIBRARIES "glfw;Vulkan::Vulkan" curl Freetype::Freetype)
 
 # Use vulkan headers from glfw:
 include_directories(${GLFW_DIR}/deps ${IMGUI_DIR}/misc/cpp/)
@@ -38,5 +39,6 @@ include_directories(${GLFW_DIR}/deps ${IMGUI_DIR}/misc/cpp/)
 # Gather all source files (modified to trigger re-run for new files)
 file(GLOB sources src/*.cpp)
 
-add_executable(openrequest ${sources} ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp ${IMGUI_DIR}/backends/imgui_impl_vulkan.cpp ${IMGUI_DIR}/imgui.cpp ${IMGUI_DIR}/imgui_draw.cpp ${IMGUI_DIR}/imgui_demo.cpp ${IMGUI_DIR}/imgui_tables.cpp ${IMGUI_DIR}/imgui_widgets.cpp ${IMGUI_DIR}/misc/cpp/imgui_stdlib.cpp)
+add_executable(openrequest ${sources} ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp ${IMGUI_DIR}/backends/imgui_impl_vulkan.cpp ${IMGUI_DIR}/imgui.cpp ${IMGUI_DIR}/imgui_draw.cpp ${IMGUI_DIR}/imgui_demo.cpp ${IMGUI_DIR}/imgui_tables.cpp ${IMGUI_DIR}/imgui_widgets.cpp ${IMGUI_DIR}/misc/cpp/imgui_stdlib.cpp ${IMGUI_DIR}/misc/freetype/imgui_freetype.cpp)
 target_link_libraries(openrequest ${LIBRARIES})
+target_compile_definitions(openrequest PRIVATE FONT_PATH="${CMAKE_SOURCE_DIR}/ext/imgui/misc/fonts/Roboto-Medium.ttf")

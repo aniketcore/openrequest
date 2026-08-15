@@ -1,6 +1,7 @@
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_vulkan.h"
+#include "misc/freetype/imgui_freetype.h"
 #include <stdio.h>          // printf, fprintf
 #include <stdlib.h>         // abort
 #define GLFW_INCLUDE_NONE
@@ -382,6 +383,18 @@ static GLFWwindow* Initialize(float* out_scale)
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
+
+    // Enable FreeType font rasterizer
+    io.Fonts->SetFontLoader(ImGuiFreeType::GetFontLoader());
+
+    // Load scalable vector font instead of pixelated default bitmap font
+#ifdef FONT_PATH
+    ImFont* font = io.Fonts->AddFontFromFileTTF(FONT_PATH, 16.0f);
+    if (!font)
+        io.Fonts->AddFontDefault();
+#else
+    io.Fonts->AddFontDefault();
+#endif
 
     ImGui::StyleColorsDark();
     ImGuiStyle& style = ImGui::GetStyle();
