@@ -1,25 +1,26 @@
 # openrequest
 
-> A high-performance, GPU-rendered API client alternative to Postman, written in C++ using Dear ImGui, Vulkan, and GLFW for the interface, and libcurl for asynchronous, non-blocking HTTP networking.
+A fast, lightweight, native API client for developers who want a quick, responsive tool without the overhead of Electron.
+
+Built in C++ with Dear ImGui, Vulkan, and libcurl. It starts up instantly, uses minimal memory, and stays completely responsive while executing requests.
 
 ---
 
-## Features
+## Highlights
 
-- **GPU-Accelerated UI**: Built on Vulkan and GLFW with Dear ImGui to deliver an extremely responsive, low-latency interface that remains fluid.
-- **Non-Blocking Async Engine**: HTTP requests run on background worker threads.
+- **Instant startup & low memory footprint**: Native desktop application rendered with Vulkan — no Chromium runtime or background service bloat.
+- **Flexible dockable workspace**: Open multiple requests at once. Drag tabs to reorder them, dock them side-by-side, or split panels however you like using Dear ImGui's docking engine.
+- **Async networking**: Requests run on background worker threads via `libcurl`, so slow endpoints or large downloads never freeze your UI.
+- **HTTP & WebSocket support**: Test all standard HTTP methods (GET, POST, PUT, DELETE, PATCH, etc.) with configurable query parameters, headers, and request bodies. Includes tab support for WebSocket testing.
+- **Local & private**: Runs entirely on your machine. No mandatory accounts, no cloud sync, and no analytics tracking.
 
 ---
 
-## Build and Installation
+## Getting Started
 
-### Prerequisites
+### Prerequisites (Ubuntu / Debian)
 
-To compile openrequest on Linux, you will need a C++23 compiler, CMake 4.0 (or newer), the Vulkan SDK, GLFW dependencies, and libcurl development headers.
-
-#### Ubuntu/Debian Setup
-
-Install the package dependencies with the following command:
+Make sure you have a C++23 capable compiler, CMake, Vulkan drivers/headers, GLFW dependencies, and libcurl:
 
 ```bash
 sudo apt update
@@ -35,60 +36,50 @@ sudo apt install -y \
     libcurl4-openssl-dev
 ```
 
-### Compilation Steps
+### Build & Run
 
-1. **Clone the repository** (along with submodules recursively):
+1. **Clone the repository** (including submodules for ImGui and GLFW):
    ```bash
-   git clone https://github.com/aniketcore/openrequest --recursive
+   git clone --recursive https://github.com/aniketcore/openrequest.git
    cd openrequest
    ```
-   *(If you cloned without `--recursive`, run `git submodule update --init --recursive` to pull down Dear ImGui and GLFW)*
+   *(If already cloned without `--recursive`, run `git submodule update --init --recursive`)*
 
 2. **Configure with CMake**:
    ```bash
-   cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+   cmake -B build -DCMAKE_BUILD_TYPE=Release
    ```
 
-3. **Build the executable**:
+3. **Build**:
    ```bash
    cmake --build build -j$(nproc)
    ```
 
-4. **Run openrequest**:
+4. **Launch**:
    ```bash
    ./build/openrequest
    ```
 
 ---
 
-## Repository Structure
+## Workspace & Tips
 
-Below is an overview of the core project structure, with direct links to the code implementation:
-
-- [src/](src/)
-  - [main.cpp](src/main.cpp) — Application entry point, spawning the UI loop thread.
-  - [ui_loop.cpp](src/ui_loop.cpp) / [ui_loop.h](src/ui_loop.h) — Manages the GLFW window lifecycle, Vulkan pipeline, and draws the primary frame.
-  - [sidebar.cpp](src/sidebar.cpp) / [sidebar.h](src/sidebar.h) — Renders the sidebar with dynamic tab list additions, deletions, and rename fields.
-  - [tab.cpp](src/tab.cpp) / [tab.h](src/tab.h) — Renders main layout sections, active tab views (HTTP details, WebSocket settings), and top sub-navigation bar.
-  - [httpengine.h](src/httpengine.h) — Multi-threaded HTTP dispatcher built on libcurl.
-  - [httptypes.h](src/httptypes.h) — Standardized structs for requests, responses, and HTTP methods.
-  - [imgui_helpers.h](src/imgui_helpers.h) — Helper functions wrapping Vulkan instance, physical device, swapchain initialization, and frame rendering.
-- [ext/](ext/) — External Git submodules:
-  - [glfw](ext/glfw/) (Window/Input/OS abstraction)
-  - [imgui](ext/imgui/) (Immediate mode GUI toolkit)
+- **Tabs**: Click **+** or right-click in the sidebar to create new HTTP or WebSocket tabs. You can close tabs with the `x` button or right-click to rename them.
+- **Split layouts**: Drag any tab header to dock it next to, above, or below another tab. This makes comparing request payloads and responses side-by-side effortless.
+- **Sending requests**: Choose your method, type the endpoint, set your headers/params/body, and press **Send**.
 
 ---
 
 ## Roadmap
 
-- [ ] **Full WebSocket Client**: Implement connection management, frame send/receive loops, and JSON payload handling.
-- [ ] **Custom Headers & Parameters**: Add interactive tables to customize HTTP request headers and query parameters dynamically.
-- [ ] **Syntax Highlighting**: Integrate custom coloring or Markdown rendering for JSON, XML, and HTML response bodies.
-- [ ] **Request History / Collections**: Enable filesystem storage or local SQLite DB to save past requests and organize collections.
-- [ ] **Environment Variables**: Add environment scoping (e.g. `{{host}}`) for rapid endpoint testing.
+- [ ] Syntax highlighting & auto-formatting for JSON and XML responses
+- [ ] Save / export request collections (with Postman collection import)
+- [ ] Environment variable templating (e.g. `{{base_url}}`, `{{token}}`)
+- [ ] Full WebSocket message framing & interactive streaming log
+- [ ] Keyboard shortcuts (Ctrl+Enter to send, Ctrl+T for new tab, Ctrl+W to close)
 
 ---
 
 ## License
 
-This project is open-source and licensed under the MIT License.
+This project is licensed under the [MIT License](LICENSE).
