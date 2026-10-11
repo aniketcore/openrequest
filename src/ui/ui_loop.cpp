@@ -1,5 +1,6 @@
 #include "ui_loop.h"
 #include "imgui.h"
+#include "imgui_internal.h"
 #include "imgui_helpers.h"
 #include "sidebar.h"
 #include "tab.h"
@@ -13,9 +14,7 @@ int RunUILoop()
     if (!window)
         return 1;
 
-    // App State (Move this into tab.h / your app controller later)
-    bool show_demo_window = true;
-    ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+    ImVec4 clear_color = ImVec4(0.1f, 0.1f, 0.12f, 1.00f);
 
     // Main loop
     while (!glfwWindowShouldClose(window))
@@ -42,7 +41,6 @@ int RunUILoop()
             
             bool zoom_in = (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Equal)) || (io.KeyCtrl && io.MouseWheel > 0.0f);
             bool zoom_out = (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Minus)) || (io.KeyCtrl && io.MouseWheel < 0.0f);
-            bool tab_toggle = (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_B));
 
             if (zoom_in || zoom_out)
             {
@@ -60,16 +58,43 @@ int RunUILoop()
                 // Consume mouse wheel event so the active window/panels do not scroll
                 io.MouseWheel = 0.0f;
             }
-            if (tab_toggle && UI::g_SidebarCollapsed) {
-                UI::g_SidebarRestoreRequested =1;
-                UI::g_SidebarCollapsed = 0;
-            }
-            else if (tab_toggle && !UI::g_SidebarCollapsed) {
-                UI::g_SidebarCollapsed = 1;
-            }
         }
 
         // --- Render Application UI ---
+        DrawTopChrome(window);
+
+        // --- Build default dock layout once ---
+        const ImGuiViewport* viewport = ImGui::GetMainViewport();
+        ImGuiID dockspace_id = ImGui::GetID("MainDockSpace");
+
+        if (ImGui::DockBuilderGetNode(dockspace_id) == nullptr)
+        {
+            ImGui::DockBuilderRemoveNode(dockspace_id);
+            ImGui::DockBuilderAddNode(dockspace_id, ImGuiDockNodeFlags_DockSpace);
+            ImGui::DockBuilderSetNodeSize(dockspace_id, viewport->WorkSize);
+
+            ImGuiID dock_left;
+            ImGuiID dock_main = dockspace_id;
+            ImGui::DockBuilderSplitNode(dock_main, ImGuiDir_Left, 0.22f, &dock_left, &dock_main);
+
+            ImGui::DockBuilderDockWindow("Collections", dock_left);
+            for (auto& tab : g_Tabs)
+            {
+                char win_title[128];
+                snprintf(win_title, sizeof(win_title), "%s###tab_%d", tab->name.c_str(), tab->id);
+                ImGui::DockBuilderDockWindow(win_title, dock_main);
+            }
+            ImGui::DockBuilderFinish(dockspace_id);
+            g_MainDockId = dock_main;
+        }
+        else if (g_MainDockId == 0)
+        {
+            ImGuiDockNode* central = ImGui::DockBuilderGetCentralNode(dockspace_id);
+            if (central)
+                g_MainDockId = central->ID;
+        }
+
+        ImGui::DockSpaceOverViewport(dockspace_id, viewport, ImGuiDockNodeFlags_PassthruCentralNode);
 
         RenderSidebar();
         DrawTabContent();
@@ -77,6 +102,7 @@ int RunUILoop()
         // End Frame & Submit Draw Calls
         ImGui::Render();
         UI::Vulkan::RenderFrame(ImGui::GetDrawData(), clear_color);
+
     }
 
     UI::Vulkan::Cleanup(window);

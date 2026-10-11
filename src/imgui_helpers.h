@@ -1,11 +1,10 @@
 #include "imgui.h"
+#define GLFW_INCLUDE_VULKAN
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_vulkan.h"
 #include "misc/freetype/imgui_freetype.h"
 #include <stdio.h>          // printf, fprintf
 #include <stdlib.h>         // abort
-#define GLFW_INCLUDE_NONE
-#define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
 // Volk headers
@@ -405,6 +404,7 @@ static GLFWwindow* Initialize(float* out_scale)
         return nullptr;
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+    glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
     float main_scale = ImGui_ImplGlfw_GetContentScaleForMonitor(glfwGetPrimaryMonitor());
     if (out_scale) *out_scale = main_scale;
 
@@ -420,6 +420,8 @@ static GLFWwindow* Initialize(float* out_scale)
         printf("GLFW: Vulkan Not Supported\n");
         return nullptr;
     }
+
+    glfwSetWindowAttrib(window, GLFW_DECORATED, GLFW_FALSE);
 
     // Vulkan Setup
     ImVector<const char*> extensions;
@@ -444,6 +446,7 @@ static GLFWwindow* Initialize(float* out_scale)
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
     // Enable FreeType font rasterizer
     io.Fonts->SetFontLoader(ImGuiFreeType::GetFontLoader());
@@ -472,6 +475,7 @@ static GLFWwindow* Initialize(float* out_scale)
 
     // Setup Backends
     ImGui_ImplGlfw_InitForVulkan(window, true);
+
     ImGui_ImplVulkan_InitInfo init_info = {};
     init_info.Instance = g_Instance;
     init_info.PhysicalDevice = g_PhysicalDevice;

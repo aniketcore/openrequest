@@ -36,12 +36,25 @@ find_package(Freetype REQUIRED)
 #set(LIBRARIES "glfw;${VULKAN_LIBRARY}")
 set(LIBRARIES "glfw;Vulkan::Vulkan" curl Freetype::Freetype)
 
+if(UNIX AND NOT APPLE)
+  find_package(X11)
+  if(X11_FOUND)
+    include_directories(${X11_INCLUDE_DIR})
+    list(APPEND LIBRARIES ${X11_LIBRARIES})
+  endif()
+endif()
+
 # Use vulkan headers from glfw:
-include_directories(${GLFW_DIR}/deps ${IMGUI_DIR}/misc/cpp/)
+include_directories(${GLFW_DIR}/deps ${IMGUI_DIR}/misc/cpp/ ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/src/ui ${CMAKE_SOURCE_DIR}/src/app)
 
 # Gather all source files (modified to trigger re-run for new files)
-file(GLOB sources src/*.cpp)
+file(GLOB_RECURSE sources CONFIGURE_DEPENDS src/*.cpp src/**/*.cpp)
+list(FILTER sources EXCLUDE REGEX "gtk_glarea_demo\\.cpp$")
 
 add_executable(openrequest ${sources} ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp ${IMGUI_DIR}/backends/imgui_impl_vulkan.cpp ${IMGUI_DIR}/imgui.cpp ${IMGUI_DIR}/imgui_draw.cpp ${IMGUI_DIR}/imgui_demo.cpp ${IMGUI_DIR}/imgui_tables.cpp ${IMGUI_DIR}/imgui_widgets.cpp ${IMGUI_DIR}/misc/cpp/imgui_stdlib.cpp ${IMGUI_DIR}/misc/freetype/imgui_freetype.cpp ${IMGUI_COLOR_TEXT_EDIT_DIR}/TextEditor.cpp)
 target_link_libraries(openrequest ${LIBRARIES})
 target_compile_definitions(openrequest PRIVATE FONT_PATH="${CMAKE_SOURCE_DIR}/ext/imgui/misc/fonts/Roboto-Medium.ttf" MONO_FONT_PATH="${CMAKE_SOURCE_DIR}/ext/imgui/misc/fonts/Cousine-Regular.ttf" EDITOR_FONT_SIZE=16)
+
+
+
+
