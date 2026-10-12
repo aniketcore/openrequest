@@ -451,9 +451,15 @@ static GLFWwindow* Initialize(float* out_scale)
     // Enable FreeType font rasterizer
     io.Fonts->SetFontLoader(ImGuiFreeType::GetFontLoader());
 
-// Load custom monospace font for code editor if provided at build time
+// Load custom monospace font for code editor if provided at build time or local bundle
 #ifdef MONO_FONT_PATH
     ImFont* mono = io.Fonts->AddFontFromFileTTF(MONO_FONT_PATH, (float)EDITOR_FONT_SIZE);
+    if (!mono)
+        mono = io.Fonts->AddFontFromFileTTF("fonts/Cousine-Regular.ttf", (float)EDITOR_FONT_SIZE);
+    if (mono)
+        g_MonoFont = mono;
+#else
+    ImFont* mono = io.Fonts->AddFontFromFileTTF("fonts/Cousine-Regular.ttf", (float)EDITOR_FONT_SIZE);
     if (mono)
         g_MonoFont = mono;
 #endif

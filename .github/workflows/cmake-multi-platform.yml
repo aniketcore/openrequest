@@ -23,31 +23,48 @@ jobs:
       #
       # To add more build types (Release, Debug, RelWithDebInfo, etc.) customize the build_type list.
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest]
         build_type: [Release]
-        c_compiler: [gcc, clang, cl]
+        c_compiler: [gcc, clang]
         include:
-          - os: windows-latest
-            c_compiler: cl
-            cpp_compiler: cl
-          - os: ubuntu-latest
-            c_compiler: gcc
+          - c_compiler: gcc
             cpp_compiler: g++
-          - os: ubuntu-latest
-            c_compiler: clang
+          - c_compiler: clang
             cpp_compiler: clang++
-        exclude:
-          - os: windows-latest
-            c_compiler: gcc
-          - os: windows-latest
-            c_compiler: clang
-          - os: ubuntu-latest
-            c_compiler: cl
 
     steps:
     - uses: actions/checkout@v4
       with:
         submodules: recursive
+
+    - name: Install dependencies
+      run: |
+        if command -v sudo >/dev/null 2>&1; then
+          SUDO="sudo"
+        else
+          SUDO=""
+        fi
+        export DEBIAN_FRONTEND=noninteractive
+        $SUDO apt-get update
+        $SUDO apt-get install -y --no-install-recommends \
+          build-essential \
+          cmake \
+          pkg-config \
+          clang \
+          libvulkan-dev \
+          vulkan-tools \
+          libfreetype6-dev \
+          libcurl4-openssl-dev \
+          libwayland-dev \
+          wayland-protocols \
+          libxkbcommon-dev \
+          xorg-dev \
+          libx11-dev \
+          libxrandr-dev \
+          libxinerama-dev \
+          libxcursor-dev \
+          libxi-dev \
+          patchelf
 
     - name: Set reusable strings
       # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
@@ -75,3 +92,70 @@ jobs:
       # Execute tests defined by the CMake configuration. Note that --build-config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
       # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
       run: ctest --build-config ${{ matrix.build_type }}
+
+    - name: Package standalone tarball
+      shell: bash
+      run: |
+        STAGING_DIR="${{ github.workspace }}/staging/openrequest"
+        rm -rf "${{ github.workspace }}/staging"
+        mkdir -p "${STAGING_DIR}/lib"
+        mkdir -p "${STAGING_DIR}/fonts"
+
+        # Copy executable
+        cp "${{ steps.strings.outputs.build-output-dir }}/openrequest" "${STAGING_DIR}/openrequest.bin"
+
+        # Copy bundled fonts
+        if [ -d "${{ github.workspace }}/ext/imgui/misc/fonts" ]; then
+          cp ${{ github.workspace }}/ext/imgui/misc/fonts/*.ttf "${STAGING_DIR}/fonts/" 2>/dev/null || true
+        fi
+
+        # Gather shared library dependencies recursively
+        EXCLUDE_REGEX='(libc\.so|libm\.so|libdl\.so|libpthread\.so|ld-linux|librt\.so|libresolv\.so|libutil\.so)'
+
+        gather_libs() {
+          local file="$1"
+          local libs
+          libs=$(ldd "$file" 2>/dev/null | awk '{if ($3 ~ /^\//) print $3; else if ($1 ~ /^\//) print $1}' | grep -v -E "$EXCLUDE_REGEX" || true)
+          for lib in $libs; do
+            local base
+            base=$(basename "$lib")
+            if [ -f "$lib" ] && [ ! -f "${STAGING_DIR}/lib/$base" ]; then
+              cp -L "$lib" "${STAGING_DIR}/lib/"
+              gather_libs "$lib"
+            fi
+          done
+        }
+
+        gather_libs "${STAGING_DIR}/openrequest.bin"
+
+        # Set RPATH so openrequest.bin finds bundled libraries in $ORIGIN/lib
+        if command -v patchelf >/dev/null 2>&1; then
+          patchelf --set-rpath '$ORIGIN/lib' "${STAGING_DIR}/openrequest.bin" || true
+          for lib in "${STAGING_DIR}/lib/"*.so*; do
+            if [ -f "$lib" ]; then
+              patchelf --set-rpath '$ORIGIN' "$lib" 2>/dev/null || true
+            fi
+          done
+        fi
+
+        # Create launcher script
+        printf '%s\n' \
+          '#!/usr/bin/env bash' \
+          'SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"' \
+          'export LD_LIBRARY_PATH="$SCRIPT_DIR/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"' \
+          'cd "$SCRIPT_DIR"' \
+          'exec "$SCRIPT_DIR/openrequest.bin" "$@"' \
+          > "${STAGING_DIR}/openrequest"
+        chmod +x "${STAGING_DIR}/openrequest"
+
+        # Create tarball
+        TARBALL_NAME="openrequest-linux-${{ matrix.c_compiler }}-x86_64.tar.gz"
+        tar -czvf "${{ github.workspace }}/$TARBALL_NAME" -C "${{ github.workspace }}/staging" openrequest
+        echo "TARBALL_NAME=$TARBALL_NAME" >> "$GITHUB_ENV"
+
+    - name: Upload standalone tarball artifact
+      uses: actions/upload-artifact@v4
+      continue-on-error: true
+      with:
+        name: openrequest-linux-${{ matrix.c_compiler }}-x86_64
+        path: ${{ env.TARBALL_NAME }}

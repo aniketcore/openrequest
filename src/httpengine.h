@@ -3,6 +3,8 @@
 #include <curl/curl.h>
 #include <string>
 #include <thread>
+#include <algorithm>
+#include <cctype>
 #include "httptypes.h"
 namespace HTTP
 {
