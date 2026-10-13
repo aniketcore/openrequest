@@ -82,6 +82,8 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${GLFW_DIR}/include")
 endif()
 
 target_compile_definitions(openrequest PRIVATE
+  NOMINMAX
+  WIN32_LEAN_AND_MEAN
   VK_PROTOTYPES
   FONT_PATH=\"${CMAKE_CURRENT_SOURCE_DIR}/ext/imgui/misc/fonts/Roboto-Medium.ttf\"
   MONO_FONT_PATH=\"${CMAKE_CURRENT_SOURCE_DIR}/ext/imgui/misc/fonts/Cousine-Regular.ttf\"
