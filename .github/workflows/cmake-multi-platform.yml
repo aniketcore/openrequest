@@ -233,7 +233,7 @@ jobs:
 
   release:
     name: Attach Release Tarballs
-    if: github.event_name == 'release' && env.ACT != 'true'
+    if: github.event_name == 'release'
     needs: build
     runs-on: ubuntu-latest
     permissions:
