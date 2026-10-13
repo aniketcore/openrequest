@@ -33,7 +33,8 @@ sudo apt install -y \
     xorg-dev \
     libwayland-dev \
     libxkbcommon-dev \
-    libcurl4-openssl-dev
+    libcurl4-openssl-dev \
+    libfreetype6-dev
 ```
 
 #### Windows (with vcpkg)
