@@ -18,10 +18,10 @@ Built in C++ with Dear ImGui, Vulkan, and libcurl. It starts up instantly, uses 
 
 ## Getting Started
 
-### Prerequisites (Ubuntu / Debian)
+### Prerequisites
 
+#### Linux (Ubuntu / Debian)
 Make sure you have a C++23 capable compiler, CMake, Vulkan drivers/headers, GLFW dependencies, and libcurl:
-
 ```bash
 sudo apt update
 sudo apt install -y \
@@ -36,29 +36,56 @@ sudo apt install -y \
     libcurl4-openssl-dev
 ```
 
+#### Windows (with vcpkg)
+1. Install [Visual Studio 2022](https://visualstudio.microsoft.com/) with the "Desktop development with C++" workload.
+2. Install the [LunarG Vulkan SDK](https://vulkan.lunarg.com/sdk/home).
+3. Set up [vcpkg](https://github.com/microsoft/vcpkg) and ensure the `VCPKG_ROOT` environment variable is set to your vcpkg directory:
+   ```powershell
+   git clone https://github.com/microsoft/vcpkg.git C:\vcpkg
+   C:\vcpkg\bootstrap-vcpkg.bat
+   [System.Environment]::SetEnvironmentVariable("VCPKG_ROOT", "C:\vcpkg", "User")
+   ```
+
+---
+
 ### Build & Run
 
-1. **Clone the repository** (including submodules for ImGui and GLFW):
+1. **Clone the repository** (including submodules):
    ```bash
    git clone --recursive https://github.com/aniketcore/openrequest.git
    cd openrequest
    ```
    *(If already cloned without `--recursive`, run `git submodule update --init --recursive`)*
 
-2. **Configure with CMake**:
-   ```bash
-   cmake -B build -DCMAKE_BUILD_TYPE=Release
-   ```
+#### Option A: Using CMake Presets (Recommended)
+* **Windows (vcpkg + MSVC)**:
+  ```powershell
+  cmake --preset windows-vcpkg
+  cmake --build --preset windows-vcpkg --config Release
+  .\build\windows-vcpkg\Release\openrequest.exe
+  ```
 
-3. **Build**:
-   ```bash
-   cmake --build build -j$(nproc)
-   ```
+* **Linux (System Packages)**:
+  ```bash
+  cmake --preset linux-system
+  cmake --build --preset linux-system
+  ./build/linux-system/openrequest
+  ```
 
-4. **Launch**:
-   ```bash
-   ./build/openrequest
-   ```
+#### Option B: Standard CMake Command Line
+* **Windows with vcpkg**:
+  ```powershell
+  cmake -B build -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" -DCMAKE_BUILD_TYPE=Release
+  cmake --build build --config Release
+  .\build\Release\openrequest.exe
+  ```
+
+* **Linux (native packages)**:
+  ```bash
+  cmake -B build -DCMAKE_BUILD_TYPE=Release
+  cmake --build build -j$(nproc)
+  ./build/openrequest
+  ```
 
 ---
 

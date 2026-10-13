@@ -399,7 +399,9 @@ static void FramePresent(ImGui_ImplVulkanH_Window* wd)
 static GLFWwindow* Initialize(float* out_scale) 
 {
     glfwSetErrorCallback(GlfwErrorCallback);
+#if defined(__linux__) && !defined(__ANDROID__) && defined(GLFW_PLATFORM_X11)
     glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_X11);
+#endif
     if (!glfwInit())
         return nullptr;
 

@@ -1,0 +1,82 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "default",
+      "displayName": "Default (System Packages / Submodules)",
+      "description": "Standard build using system packages and vendored submodules",
+      "binaryDir": "${sourceDir}/build/default",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "windows-vcpkg",
+      "displayName": "Windows (MSVC + vcpkg)",
+      "description": "Build with Visual Studio and vcpkg manifest mode",
+      "generator": "Visual Studio 17 2022",
+      "architecture": {
+        "value": "x64",
+        "strategy": "set"
+      },
+      "binaryDir": "${sourceDir}/build/windows-vcpkg",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_TOOLCHAIN_FILE": {
+          "type": "FILEPATH",
+          "value": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+        }
+      }
+    },
+    {
+      "name": "windows-ninja-vcpkg",
+      "displayName": "Windows (Ninja + vcpkg)",
+      "description": "Build with Ninja and vcpkg manifest mode on Windows",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/ninja-vcpkg",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_TOOLCHAIN_FILE": {
+          "type": "FILEPATH",
+          "value": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+        }
+      }
+    },
+    {
+      "name": "linux-vcpkg",
+      "displayName": "Linux (Ninja + vcpkg)",
+      "description": "Build with Ninja and vcpkg manifest mode on Linux",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/linux-vcpkg",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_TOOLCHAIN_FILE": {
+          "type": "FILEPATH",
+          "value": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+        }
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "default",
+      "configurePreset": "default"
+    },
+    {
+      "name": "windows-vcpkg",
+      "configurePreset": "windows-vcpkg",
+      "configuration": "Debug"
+    },
+    {
+      "name": "windows-ninja-vcpkg",
+      "configurePreset": "windows-ninja-vcpkg",
+      "configuration": "Debug"
+    },
+    {
+      "name": "linux-vcpkg",
+      "configurePreset": "linux-vcpkg",
+      "configuration": "Debug"
+    }
+  ]
+}
+

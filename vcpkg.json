@@ -1,0 +1,12 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "openrequest",
+  "version-string": "0.1.0",
+  "description": "Fast, lightweight, native API client built in C++ with Dear ImGui and Vulkan",
+  "dependencies": [
+    "curl",
+    "freetype",
+    "glfw3"
+  ]
+}
+

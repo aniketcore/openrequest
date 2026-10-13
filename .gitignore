@@ -1,2 +1,8 @@
 .cache
 build/
+out/
+.vs/
+vcpkg_installed/
+CMakeUserPresets.json
+a.out
+*.user
