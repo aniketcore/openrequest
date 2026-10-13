@@ -107,28 +107,11 @@ void RenderSidebar()
 
         if (ImGui::Button("+", ImVec2(button_width, button_width)))
         {
-            ImGui::OpenPopup("AddTabPopup");
-        }
-
-        if (ImGui::BeginPopup("AddTabPopup"))
-        {
-            if (ImGui::MenuItem("New HTTP Tab"))
-            {
-                char default_name[32];
-                snprintf(default_name, sizeof(default_name), "HTTP Tab %d", g_NextTabId);
-                g_Tabs.push_back(std::make_unique<HttpTab>(g_NextTabId, default_name));
-                FocusTab(g_NextTabId);
-                g_NextTabId++;
-            }
-            if (ImGui::MenuItem("New WebSocket Tab"))
-            {
-                char default_name[32];
-                snprintf(default_name, sizeof(default_name), "WS Tab %d", g_NextTabId);
-                g_Tabs.push_back(std::make_unique<WsTab>(g_NextTabId, default_name));
-                FocusTab(g_NextTabId);
-                g_NextTabId++;
-            }
-            ImGui::EndPopup();
+            char default_name[32];
+            snprintf(default_name, sizeof(default_name), "HTTP Tab %d", g_NextTabId);
+            g_Tabs.push_back(std::make_unique<HttpTab>(g_NextTabId, default_name));
+            FocusTab(g_NextTabId);
+            g_NextTabId++;
         }
 
         ImGui::Separator();

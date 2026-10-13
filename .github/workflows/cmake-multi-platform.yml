@@ -7,6 +7,8 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+  release:
+    types: [ published ]
 
 jobs:
   build:
@@ -16,21 +18,14 @@ jobs:
       # Set fail-fast to false to ensure that feedback is delivered for all matrix combinations. Consider changing this to true when your workflow is stable.
       fail-fast: false
 
-      # Set up a matrix to run the following 3 configurations:
-      # 1. <Windows, Release, latest MSVC compiler toolchain on the default runner image, default generator>
-      # 2. <Linux, Release, latest GCC compiler toolchain on the default runner image, default generator>
-      # 3. <Linux, Release, latest Clang compiler toolchain on the default runner image, default generator>
-      #
-      # To add more build types (Release, Debug, RelWithDebInfo, etc.) customize the build_type list.
+      # Canonical release matrix:
+      # 1. Linux x86_64 (GCC)
+      # 2. Windows x86_64 (MSVC)
       matrix:
         include:
           - os: ubuntu-latest
             c_compiler: gcc
             cpp_compiler: g++
-            build_type: Release
-          - os: ubuntu-latest
-            c_compiler: clang
-            cpp_compiler: clang++
             build_type: Release
           - os: windows-latest
             c_compiler: cl
@@ -186,12 +181,12 @@ jobs:
         chmod +x "${STAGING_DIR}/openrequest"
 
         # Create tarball
-        PKG_FILE="openrequest-linux-${{ matrix.c_compiler }}-x86_64.tar.gz"
+        PKG_FILE="openrequest-linux-x86_64.tar.gz"
         tar -czvf "${{ github.workspace }}/$PKG_FILE" -C "${{ github.workspace }}/staging" openrequest
         echo "PACKAGE_PATH=${{ github.workspace }}/$PKG_FILE" >> "$GITHUB_ENV"
-        echo "PACKAGE_NAME=openrequest-linux-${{ matrix.c_compiler }}-x86_64" >> "$GITHUB_ENV"
+        echo "PACKAGE_NAME=openrequest-linux-x86_64" >> "$GITHUB_ENV"
 
-    - name: Package standalone zip (Windows)
+    - name: Package standalone tarball (Windows)
       if: runner.os == 'Windows'
       shell: pwsh
       run: |
@@ -223,10 +218,10 @@ jobs:
           Copy-Item -Path "${{ github.workspace }}\ext\imgui\misc\fonts\*.ttf" -Destination "$StagingDir\fonts"
         }
 
-        # Create zip package
-        $ZipName = "openrequest-windows-x86_64.zip"
-        Compress-Archive -Path "$StagingDir\*" -DestinationPath "${{ github.workspace }}\$ZipName" -Force
-        Add-Content -Path $env:GITHUB_ENV -Value "PACKAGE_PATH=${{ github.workspace }}\$ZipName"
+        # Create tarball package
+        $TarName = "openrequest-windows-x86_64.tar.gz"
+        tar -czvf "${{ github.workspace }}\$TarName" -C "${{ github.workspace }}\staging" openrequest
+        Add-Content -Path $env:GITHUB_ENV -Value "PACKAGE_PATH=${{ github.workspace }}\$TarName"
         Add-Content -Path $env:GITHUB_ENV -Value "PACKAGE_NAME=openrequest-windows-x86_64"
 
     - name: Upload standalone artifact
@@ -235,3 +230,22 @@ jobs:
       with:
         name: ${{ env.PACKAGE_NAME }}
         path: ${{ env.PACKAGE_PATH }}
+
+  release:
+    name: Attach Release Tarballs
+    if: github.event_name == 'release' && env.ACT != 'true'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all built artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Upload Tarballs to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*.tar.gz

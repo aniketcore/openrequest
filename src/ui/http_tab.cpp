@@ -293,18 +293,4 @@ namespace UI
         ImGui::PopStyleVar();
         ImGui::PopID();
     }
-
-    void WsTab::Draw()
-    {
-        ImGui::Text("WebSocket Connection Settings");
-        ImGui::Spacing();
-
-        ImGui::InputText("Address", &this->address);
-
-        ImGui::Spacing();
-        if (ImGui::Button("Connect"))
-        {
-            // Dummy action
-        }
-    }
 }

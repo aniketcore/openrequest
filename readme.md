@@ -11,7 +11,7 @@ Built in C++ with Dear ImGui, Vulkan, and libcurl. It starts up instantly, uses 
 - **Instant startup & low memory footprint**: Native desktop application rendered with Vulkan — no Chromium runtime or background service bloat.
 - **Flexible dockable workspace**: Open multiple requests at once. Drag tabs to reorder them, dock them side-by-side, or split panels however you like using Dear ImGui's docking engine.
 - **Async networking**: Requests run on background worker threads via `libcurl`, so slow endpoints or large downloads never freeze your UI.
-- **HTTP & WebSocket support**: Test all standard HTTP methods (GET, POST, PUT, DELETE, PATCH, etc.) with configurable query parameters, headers, and request bodies. Includes tab support for WebSocket testing.
+- **Full HTTP support**: Test all standard HTTP methods (GET, POST, PUT, DELETE, PATCH, etc.) with configurable query parameters, headers, and request bodies.
 - **Local & private**: Runs entirely on your machine. No mandatory accounts, no cloud sync, and no analytics tracking.
 
 ---
@@ -92,7 +92,7 @@ sudo apt install -y \
 
 ## Workspace & Tips
 
-- **Tabs**: Click **+** or right-click in the sidebar to create new HTTP or WebSocket tabs. You can close tabs with the `x` button or right-click to rename them.
+- **Tabs**: Click **+** in the sidebar to create new HTTP tabs. You can close tabs with the **x** button or double-click to rename them.
 - **Split layouts**: Drag any tab header to dock it next to, above, or below another tab. This makes comparing request payloads and responses side-by-side effortless.
 - **Sending requests**: Choose your method, type the endpoint, set your headers/params/body, and press **Send**.
 

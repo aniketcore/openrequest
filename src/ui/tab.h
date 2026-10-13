@@ -54,15 +54,6 @@ extern std::vector<SavedRequest> g_Collection;
 void SaveCollectionToFile(const std::string& path);
 void LoadCollectionFromFile(const std::string& path);
 
-class WsTab : public Tab {
-public:
-    std::string address;
-
-    WsTab(int id, std::string name) : Tab(id, std::move(name)), address("wss://echo.websocket.org") {}
-
-    void Draw() override;
-};
-
 // Global active tab state declarations
 extern std::vector<std::unique_ptr<Tab>> g_Tabs;
 extern int g_ActiveTabId;

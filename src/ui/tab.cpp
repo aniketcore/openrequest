@@ -267,7 +267,7 @@ namespace UI
 
     std::vector<std::unique_ptr<Tab>> g_Tabs = InitializeTabs();
     int g_ActiveTabId = 1;
-    int g_NextTabId = 4;
+    int g_NextTabId = 2;
     int g_SelectedTopTab = 0;
     
     std::vector<SavedRequest> g_Collection;
@@ -348,7 +348,7 @@ namespace UI
             if (ImGui::Begin("Workspace"))
             {
                 ImGui::Text("No open tabs.");
-                ImGui::Text("Click the '+' button in the sidebar to create an HTTP or WebSocket request.");
+                ImGui::Text("Click the '+' button in the sidebar to create an HTTP request.");
             }
             ImGui::End();
             ImGui::PopStyleVar();
