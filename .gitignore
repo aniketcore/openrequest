@@ -6,3 +6,4 @@ vcpkg_installed/
 CMakeUserPresets.json
 a.out
 *.user
+artifacts/

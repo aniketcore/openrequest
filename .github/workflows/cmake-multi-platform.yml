@@ -88,7 +88,7 @@ jobs:
       if: runner.os == 'Windows'
       shell: pwsh
       run: |
-        vcpkg install curl:x64-windows freetype:x64-windows
+        vcpkg install --triplet x64-windows
 
     - name: Set reusable strings
       if: matrix.os != 'windows-latest' || env.ACT != 'true'
