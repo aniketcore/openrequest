@@ -23,21 +23,31 @@ jobs:
       #
       # To add more build types (Release, Debug, RelWithDebInfo, etc.) customize the build_type list.
       matrix:
-        os: [ubuntu-latest]
-        build_type: [Release]
-        c_compiler: [gcc, clang]
         include:
-          - c_compiler: gcc
+          - os: ubuntu-latest
+            c_compiler: gcc
             cpp_compiler: g++
-          - c_compiler: clang
+            build_type: Release
+          - os: ubuntu-latest
+            c_compiler: clang
             cpp_compiler: clang++
+            build_type: Release
+          - os: windows-latest
+            c_compiler: cl
+            cpp_compiler: cl
+            build_type: Release
 
     steps:
     - uses: actions/checkout@v4
       with:
         submodules: recursive
 
-    - name: Install dependencies
+    - name: Skip Windows in act
+      if: env.ACT == 'true' && matrix.os == 'windows-latest'
+      run: echo "Skipping Windows build when running locally with act (act only runs Linux containers)"
+
+    - name: Install dependencies (Linux)
+      if: runner.os == 'Linux' && matrix.os != 'windows-latest'
       run: |
         if command -v sudo >/dev/null 2>&1; then
           SUDO="sudo"
@@ -66,7 +76,21 @@ jobs:
           libxi-dev \
           patchelf
 
+    - name: Install Vulkan SDK (Windows)
+      if: runner.os == 'Windows'
+      uses: humbletim/install-vulkan-sdk@v1.1.1
+      with:
+        version: latest
+        cache: true
+
+    - name: Install dependencies via vcpkg (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        vcpkg install curl:x64-windows freetype:x64-windows
+
     - name: Set reusable strings
+      if: matrix.os != 'windows-latest' || env.ACT != 'true'
       # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
       id: strings
       shell: bash
@@ -74,26 +98,38 @@ jobs:
         echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
 
     - name: Configure CMake
-      # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
-      # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
-      run: >
-        cmake -B ${{ steps.strings.outputs.build-output-dir }}
-        -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
-        -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
-        -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
-        -S ${{ github.workspace }}
+      if: matrix.os != 'windows-latest' || env.ACT != 'true'
+      shell: bash
+      run: |
+        if [ "${{ runner.os }}" = "Windows" ]; then
+          cmake -B "${{ steps.strings.outputs.build-output-dir }}" \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DCMAKE_TOOLCHAIN_FILE="$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" \
+            -DVCPKG_TARGET_TRIPLET=x64-windows \
+            -A x64 \
+            -S "${{ github.workspace }}"
+        else
+          cmake -B "${{ steps.strings.outputs.build-output-dir }}" \
+            -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }} \
+            -DCMAKE_C_COMPILER=${{ matrix.c_compiler }} \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -S "${{ github.workspace }}"
+        fi
 
     - name: Build
+      if: matrix.os != 'windows-latest' || env.ACT != 'true'
       # Build your program with the given configuration. Note that --config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
       run: cmake --build ${{ steps.strings.outputs.build-output-dir }} --config ${{ matrix.build_type }}
 
     - name: Test
+      if: matrix.os != 'windows-latest' || env.ACT != 'true'
       working-directory: ${{ steps.strings.outputs.build-output-dir }}
       # Execute tests defined by the CMake configuration. Note that --build-config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
       # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
       run: ctest --build-config ${{ matrix.build_type }}
 
-    - name: Package standalone tarball
+    - name: Package standalone tarball (Linux)
+      if: runner.os == 'Linux' && matrix.os != 'windows-latest'
       shell: bash
       run: |
         STAGING_DIR="${{ github.workspace }}/staging/openrequest"
@@ -149,13 +185,52 @@ jobs:
         chmod +x "${STAGING_DIR}/openrequest"
 
         # Create tarball
-        TARBALL_NAME="openrequest-linux-${{ matrix.c_compiler }}-x86_64.tar.gz"
-        tar -czvf "${{ github.workspace }}/$TARBALL_NAME" -C "${{ github.workspace }}/staging" openrequest
-        echo "TARBALL_NAME=$TARBALL_NAME" >> "$GITHUB_ENV"
+        PKG_FILE="openrequest-linux-${{ matrix.c_compiler }}-x86_64.tar.gz"
+        tar -czvf "${{ github.workspace }}/$PKG_FILE" -C "${{ github.workspace }}/staging" openrequest
+        echo "PACKAGE_PATH=${{ github.workspace }}/$PKG_FILE" >> "$GITHUB_ENV"
+        echo "PACKAGE_NAME=openrequest-linux-${{ matrix.c_compiler }}-x86_64" >> "$GITHUB_ENV"
 
-    - name: Upload standalone tarball artifact
+    - name: Package standalone zip (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        $StagingDir = "${{ github.workspace }}\staging\openrequest"
+        if (Test-Path "${{ github.workspace }}\staging") { Remove-Item -Recurse -Force "${{ github.workspace }}\staging" }
+        New-Item -ItemType Directory -Force -Path "$StagingDir" | Out-Null
+        New-Item -ItemType Directory -Force -Path "$StagingDir\fonts" | Out-Null
+
+        # Locate openrequest.exe
+        $BuildDir = "${{ steps.strings.outputs.build-output-dir }}"
+        $Exe = if (Test-Path "$BuildDir\Release\openrequest.exe") { "$BuildDir\Release\openrequest.exe" } else { "$BuildDir\openrequest.exe" }
+        Copy-Item -Path $Exe -Destination "$StagingDir\openrequest.exe"
+
+        # Copy runtime DLLs from build directory and vcpkg
+        $ExeDir = Split-Path $Exe
+        Get-ChildItem -Path $ExeDir -Filter "*.dll" | ForEach-Object {
+          Copy-Item -Path $_.FullName -Destination $StagingDir
+        }
+        if (Test-Path "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin") {
+          Get-ChildItem -Path "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin\*.dll" | ForEach-Object {
+            if (-not (Test-Path "$StagingDir\$($_.Name)")) {
+              Copy-Item -Path $_.FullName -Destination $StagingDir
+            }
+          }
+        }
+
+        # Copy fonts
+        if (Test-Path "${{ github.workspace }}\ext\imgui\misc\fonts") {
+          Copy-Item -Path "${{ github.workspace }}\ext\imgui\misc\fonts\*.ttf" -Destination "$StagingDir\fonts"
+        }
+
+        # Create zip package
+        $ZipName = "openrequest-windows-x86_64.zip"
+        Compress-Archive -Path "$StagingDir\*" -DestinationPath "${{ github.workspace }}\$ZipName" -Force
+        Add-Content -Path $env:GITHUB_ENV -Value "PACKAGE_PATH=${{ github.workspace }}\$ZipName"
+        Add-Content -Path $env:GITHUB_ENV -Value "PACKAGE_NAME=openrequest-windows-x86_64"
+
+    - name: Upload standalone artifact
+      if: env.ACT != 'true'
       uses: actions/upload-artifact@v4
-      continue-on-error: true
       with:
-        name: openrequest-linux-${{ matrix.c_compiler }}-x86_64
-        path: ${{ env.TARBALL_NAME }}
+        name: ${{ env.PACKAGE_NAME }}
+        path: ${{ env.PACKAGE_PATH }}

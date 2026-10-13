@@ -31,10 +31,13 @@ include_directories(${IMGUI_COLOR_TEXT_EDIT_DIR})
 # Libraries
 find_package(Vulkan REQUIRED)
 find_package(Freetype REQUIRED)
-#find_library(VULKAN_LIBRARY
-  #NAMES vulkan vulkan-1)
-#set(LIBRARIES "glfw;${VULKAN_LIBRARY}")
-set(LIBRARIES "glfw;Vulkan::Vulkan" curl Freetype::Freetype)
+find_package(CURL REQUIRED)
+set(LIBRARIES "glfw;Vulkan::Vulkan" CURL::libcurl Freetype::Freetype)
+
+if(WIN32)
+  add_compile_definitions(NOMINMAX)
+  list(APPEND LIBRARIES user32)
+endif()
 
 if(UNIX AND NOT APPLE)
   find_package(X11)
