@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <!-- Solid Matte Squircle Base -->
+  <rect x="24" y="24" width="464" height="464" rx="112" fill="#14151a" stroke="#262933" stroke-width="4"/>
+
+  <!-- Pure Flat Solid Geometric Mark -->
+  <g transform="translate(16, 0)">
+    <!-- The Open Aperture ('O' loop) -->
+    <path d="M 285 155 A 120 120 0 1 0 285 357"
+          fill="none"
+          stroke="#00e5ff"
+          stroke-width="32"
+          stroke-linecap="round"
+          stroke-linejoin="round"/>
+
+    <!-- High-speed Request Vector (Solid Line) -->
+    <line x1="175" y1="256" x2="330" y2="256"
+          stroke="#00e5ff"
+          stroke-width="32"
+          stroke-linecap="round"/>
+
+    <!-- Request Chevron Head -->
+    <path d="M 280 196 L 345 256 L 280 316"
+          fill="none"
+          stroke="#00e5ff"
+          stroke-width="32"
+          stroke-linecap="round"
+          stroke-linejoin="round"/>
+  </g>
+</svg>

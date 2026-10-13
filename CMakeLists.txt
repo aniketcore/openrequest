@@ -53,8 +53,15 @@ set(IMGUI_COLOR_TEXT_EDIT_DIR ext/ImGuiColorTextEdit)
 file(GLOB_RECURSE sources CONFIGURE_DEPENDS src/*.cpp src/**/*.cpp)
 list(FILTER sources EXCLUDE REGEX "gtk_glarea_demo\\.cpp$")
 
+# Windows Application Resource (Executable Icon)
+set(APP_RESOURCES "")
+if(WIN32 AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/assets/openrequest.rc")
+  set(APP_RESOURCES "${CMAKE_CURRENT_SOURCE_DIR}/assets/openrequest.rc")
+endif()
+
 add_executable(openrequest
   ${sources}
+  ${APP_RESOURCES}
   ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
   ${IMGUI_DIR}/backends/imgui_impl_vulkan.cpp
   ${IMGUI_DIR}/imgui.cpp
@@ -75,6 +82,7 @@ target_include_directories(openrequest PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/${IMGUI_DIR}/backends
   ${CMAKE_CURRENT_SOURCE_DIR}/${IMGUI_DIR}/misc/cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/${IMGUI_COLOR_TEXT_EDIT_DIR}
+  ${CMAKE_CURRENT_SOURCE_DIR}/assets
 )
 
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${GLFW_DIR}/include")
@@ -100,6 +108,10 @@ target_link_libraries(openrequest PRIVATE
   CURL::libcurl
   Freetype::Freetype
 )
+
+if(WIN32)
+  target_link_libraries(openrequest PRIVATE dwmapi)
+endif()
 
 if(UNIX AND NOT APPLE)
   find_package(X11 QUIET)

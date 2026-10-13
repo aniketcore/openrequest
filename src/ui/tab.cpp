@@ -44,7 +44,7 @@ namespace UI
             // 1. Minimize Button
             if (ImGui::Button("##min_btn", ImVec2(btn_w, btn_h)))
             {
-                glfwIconifyWindow(window);
+                UI::NativeMinimizeWindow(window);
             }
             {
                 ImVec2 p0 = ImGui::GetItemRectMin();
@@ -57,17 +57,23 @@ namespace UI
             ImGui::SameLine();
 
             // 2. Maximize / Restore Button
-            bool is_max = glfwGetWindowAttrib(window, GLFW_MAXIMIZED) != 0;
+            bool is_max = UI::IsNativeWindowMaximized(window);
             if (ImGui::Button("##max_btn", ImVec2(btn_w, btn_h)))
             {
-                if (is_max)
-                    glfwRestoreWindow(window);
-                else
-                    glfwMaximizeWindow(window);
+                UI::NativeMaximizeRestoreWindow(window);
             }
             {
                 ImVec2 p0 = ImGui::GetItemRectMin();
                 ImVec2 p1 = ImGui::GetItemRectMax();
+                UI::g_MaxBtnMinX = p0.x;
+                UI::g_MaxBtnMaxX = p1.x;
+
+                // Highlight maximize button if hovered either via Windows 11 Snap Layouts (HTMAXBUTTON) or ImGui
+                if (UI::g_MaxBtnHovered)
+                {
+                    draw_list->AddRectFilled(p0, p1, ImColor(255, 255, 255, 31));
+                }
+
                 float mid_x = (p0.x + p1.x) * 0.5f;
                 float mid_y = (p0.y + p1.y) * 0.5f;
                 if (is_max)
@@ -182,6 +188,10 @@ namespace UI
         float bar_width = ImGui::GetWindowWidth();
         float drag_width = bar_width - current_x - right_section_w;
 
+        UI::g_TitleBarHeight = btn_h;
+        UI::g_DragMinX = current_x;
+        UI::g_DragMaxX = current_x + drag_width;
+
         // 4. Center Draggable Area (fills the remaining empty space)
         if (drag_width > 10.0f)
         {
@@ -191,18 +201,15 @@ namespace UI
             {
                 if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
                 {
-                    if (glfwGetWindowAttrib(window, GLFW_MAXIMIZED))
-                        glfwRestoreWindow(window);
-                    else
-                        glfwMaximizeWindow(window);
+                    UI::NativeMaximizeRestoreWindow(window);
                 }
-                else if (ImGui::IsMouseDragging(ImGuiMouseButton_Left, 4.0f))
+                else if (ImGui::IsMouseDragging(ImGuiMouseButton_Left, 2.0f))
                 {
-                    if (!native_drag_active)
+                    if (NativeStartWindowDrag(window))
                     {
-                        native_drag_active = NativeStartWindowDrag(window);
+                        native_drag_active = false;
                     }
-                    if (!native_drag_active)
+                    else
                     {
                         drag_accum_x += ImGui::GetIO().MouseDelta.x;
                         drag_accum_y += ImGui::GetIO().MouseDelta.y;

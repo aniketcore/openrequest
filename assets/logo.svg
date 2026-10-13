@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 260" width="100%" height="100%">
+  <!-- Left Icon Mark (Solid Squircle) -->
+  <g transform="translate(30, 30)">
+    <rect x="0" y="0" width="200" height="200" rx="48" fill="#14151a" stroke="#262933" stroke-width="2.5"/>
+
+    <!-- Sharp Icon Symbol (Solid Electric Cyan) -->
+    <g transform="translate(8, 0) scale(0.42)">
+      <!-- The Open Ring (Aperture / 'O') -->
+      <path d="M 285 145 A 120 120 0 1 0 285 367"
+            fill="none"
+            stroke="#00e5ff"
+            stroke-width="34"
+            stroke-linecap="round"
+            stroke-linejoin="round"/>
+
+      <!-- Request Vector Line -->
+      <line x1="175" y1="256" x2="330" y2="256"
+            stroke="#00e5ff"
+            stroke-width="34"
+            stroke-linecap="round"/>
+
+      <!-- Chevron -->
+      <path d="M 275 190 L 345 256 L 275 322"
+            fill="none"
+            stroke="#00e5ff"
+            stroke-width="34"
+            stroke-linecap="round"
+            stroke-linejoin="round"/>
+    </g>
+  </g>
+
+  <!-- Wordmark Typography (Pure Solid Colors) -->
+  <g transform="translate(270, 142)">
+    <text x="0" y="0"
+          font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif"
+          font-size="64"
+          font-weight="300"
+          fill="#94a3b8"
+          letter-spacing="-1">open</text>
+
+    <text x="156" y="0"
+          font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif"
+          font-size="64"
+          font-weight="700"
+          fill="#ffffff"
+          letter-spacing="-1.5">request</text>
+
+    <text x="4" y="38"
+          font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, sans-serif"
+          font-size="17"
+          font-weight="600"
+          fill="#00e5ff"
+          letter-spacing="3.5">FAST NATIVE API CLIENT</text>
+  </g>
+</svg>

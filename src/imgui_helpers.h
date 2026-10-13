@@ -6,6 +6,8 @@
 #include <stdio.h>          // printf, fprintf
 #include <stdlib.h>         // abort
 #include <GLFW/glfw3.h>
+#include "app_icon.h"
+#include "native_window.h"
 
 // Volk headers
 #ifdef IMGUI_IMPL_VULKAN_USE_VOLK
@@ -406,7 +408,11 @@ static GLFWwindow* Initialize(float* out_scale)
         return nullptr;
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+#if !defined(_WIN32)
     glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
+#else
+    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+#endif
     float main_scale = ImGui_ImplGlfw_GetContentScaleForMonitor(glfwGetPrimaryMonitor());
     if (out_scale) *out_scale = main_scale;
 
@@ -418,12 +424,33 @@ static GLFWwindow* Initialize(float* out_scale)
         nullptr
     );
 
+    if (!window)
+        return nullptr;
+
+    // Set Window and Taskbar Icon (embedded multi-res)
+    GLFWimage window_icons[2];
+    window_icons[0].width = APP_ICON_48_WIDTH;
+    window_icons[0].height = APP_ICON_48_HEIGHT;
+    window_icons[0].pixels = const_cast<unsigned char*>(APP_ICON_48_PIXELS);
+
+    window_icons[1].width = APP_ICON_32_WIDTH;
+    window_icons[1].height = APP_ICON_32_HEIGHT;
+    window_icons[1].pixels = const_cast<unsigned char*>(APP_ICON_32_PIXELS);
+
+    glfwSetWindowIcon(window, 2, window_icons);
+
     if (!glfwVulkanSupported()) {
         printf("GLFW: Vulkan Not Supported\n");
         return nullptr;
     }
 
+#if !defined(_WIN32)
     glfwSetWindowAttrib(window, GLFW_DECORATED, GLFW_FALSE);
+#endif
+    UI::InitializeNativeWindow(window);
+#if defined(_WIN32)
+    glfwShowWindow(window);
+#endif
 
     // Vulkan Setup
     ImVector<const char*> extensions;
