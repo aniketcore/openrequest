@@ -20,30 +20,18 @@ find_package(Vulkan REQUIRED)
 find_package(Freetype REQUIRED)
 find_package(CURL REQUIRED)
 
-# GLFW: try system / vcpkg package first; fallback to vendored submodule
-find_package(glfw3 CONFIG QUIET)
-if(NOT TARGET glfw AND NOT TARGET glfw3::glfw)
-  if(NOT GLFW_DIR)
-    set(GLFW_DIR ext/glfw)
-  endif()
-  if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${GLFW_DIR}/CMakeLists.txt")
-    option(GLFW_BUILD_EXAMPLES "Build the GLFW example programs" OFF)
-    option(GLFW_BUILD_TESTS "Build the GLFW test programs" OFF)
-    option(GLFW_BUILD_DOCS "Build the GLFW documentation" OFF)
-    option(GLFW_INSTALL "Generate installation target" OFF)
-    option(GLFW_DOCUMENT_INTERNALS "Include internals in documentation" OFF)
-    add_subdirectory(${GLFW_DIR} binary_dir EXCLUDE_FROM_ALL)
-  else()
-    find_package(glfw3 REQUIRED)
-  endif()
+# SDL3: try system / vcpkg package first; fallback to FetchContent
+find_package(SDL3 CONFIG QUIET)
+if(NOT TARGET SDL3::SDL3)
+  include(FetchContent)
+  FetchContent_Declare(
+    SDL3
+    GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
+    GIT_TAG release-3.2.4
+  )
+  FetchContent_MakeAvailable(SDL3)
 endif()
 
-# Normalize GLFW target name
-if(TARGET glfw3::glfw)
-  set(GLFW_TARGET glfw3::glfw)
-else()
-  set(GLFW_TARGET glfw)
-endif()
 
 # Dear ImGui & ImGuiColorTextEdit
 set(IMGUI_DIR ext/imgui)
@@ -62,7 +50,7 @@ endif()
 add_executable(openrequest
   ${sources}
   ${APP_RESOURCES}
-  ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
+  ${IMGUI_DIR}/backends/imgui_impl_sdl3.cpp
   ${IMGUI_DIR}/backends/imgui_impl_vulkan.cpp
   ${IMGUI_DIR}/imgui.cpp
   ${IMGUI_DIR}/imgui_draw.cpp
@@ -85,10 +73,6 @@ target_include_directories(openrequest PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/assets
 )
 
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${GLFW_DIR}/include")
-  target_include_directories(openrequest PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/${GLFW_DIR}/include)
-endif()
-
 target_compile_definitions(openrequest PRIVATE
   NOMINMAX
   WIN32_LEAN_AND_MEAN
@@ -103,7 +87,7 @@ if(MSVC)
 endif()
 
 target_link_libraries(openrequest PRIVATE
-  ${GLFW_TARGET}
+  SDL3::SDL3
   Vulkan::Vulkan
   CURL::libcurl
   Freetype::Freetype
@@ -111,12 +95,4 @@ target_link_libraries(openrequest PRIVATE
 
 if(WIN32)
   target_link_libraries(openrequest PRIVATE dwmapi)
-endif()
-
-if(UNIX AND NOT APPLE)
-  find_package(X11 QUIET)
-  if(X11_FOUND)
-    target_include_directories(openrequest PRIVATE ${X11_INCLUDE_DIR})
-    target_link_libraries(openrequest PRIVATE ${X11_LIBRARIES})
-  endif()
 endif()

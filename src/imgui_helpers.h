@@ -1,11 +1,12 @@
 #include "imgui.h"
-#define GLFW_INCLUDE_VULKAN
-#include "imgui_impl_glfw.h"
+#include "imgui_impl_sdl3.h"
 #include "imgui_impl_vulkan.h"
 #include "misc/freetype/imgui_freetype.h"
 #include <stdio.h>          // printf, fprintf
 #include <stdlib.h>         // abort
-#include <GLFW/glfw3.h>
+#include <vulkan/vulkan.h>
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_vulkan.h>
 #include "app_icon.h"
 #include "native_window.h"
 
@@ -13,13 +14,6 @@
 #ifdef IMGUI_IMPL_VULKAN_USE_VOLK
 #define VOLK_IMPLEMENTATION
 #include <volk.h>
-#endif
-
-// [Win32] Our example includes a copy of glfw3.lib pre-compiled with VS2010 to maximize ease of testing and compatibility with old VS compilers.
-// To link with VS2010-era libraries, VS2015+ requires linking with legacy_stdio_definitions.lib, which we do using this pragma.
-// Your own project should not be affected, as you are likely to link with a newer binary of GLFW that is adequate for your version of Visual Studio.
-#if defined(_MSC_VER) && (_MSC_VER >= 1900) && !defined(IMGUI_DISABLE_WIN32_FUNCTIONS)
-#pragma comment(lib, "legacy_stdio_definitions")
 #endif
 
 namespace UI::Vulkan
@@ -104,10 +98,6 @@ static uint32_t                 g_MinImageCount = 2;
 static bool                     g_SwapChainRebuild = false;
 static ImFont* g_MonoFont = nullptr;
 
-static void GlfwErrorCallback(int error, const char* description)
-{
-    fprintf(stderr, "GLFW Error %d: %s\n", error, description);
-}
 static void CheckVkResult(VkResult err)
 {
     if (err == VK_SUCCESS)
@@ -398,76 +388,70 @@ static void FramePresent(ImGui_ImplVulkanH_Window* wd)
     wd->SemaphoreIndex = (wd->SemaphoreIndex + 1) % wd->SemaphoreCount; // Now we can use the next set of semaphores
 }
 
-static GLFWwindow* Initialize(float* out_scale) 
+static SDL_Window* Initialize(float* out_scale) 
 {
-    glfwSetErrorCallback(GlfwErrorCallback);
-#if defined(__linux__) && !defined(__ANDROID__) && defined(GLFW_PLATFORM_X11)
-    glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_X11);
-#endif
-    if (!glfwInit())
-        return nullptr;
-
-    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-#if !defined(_WIN32)
-    glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
-#else
-    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
-#endif
-    float main_scale = ImGui_ImplGlfw_GetContentScaleForMonitor(glfwGetPrimaryMonitor());
-    if (out_scale) *out_scale = main_scale;
-
-    GLFWwindow* window = glfwCreateWindow(
-        static_cast<int>(1280 * main_scale), 
-        static_cast<int>(800 * main_scale), 
-        "openrequest", 
-        nullptr, 
-        nullptr
-    );
-
-    if (!window)
-        return nullptr;
-
-    // Set Window and Taskbar Icon (embedded multi-res)
-    GLFWimage window_icons[2];
-    window_icons[0].width = APP_ICON_48_WIDTH;
-    window_icons[0].height = APP_ICON_48_HEIGHT;
-    window_icons[0].pixels = const_cast<unsigned char*>(APP_ICON_48_PIXELS);
-
-    window_icons[1].width = APP_ICON_32_WIDTH;
-    window_icons[1].height = APP_ICON_32_HEIGHT;
-    window_icons[1].pixels = const_cast<unsigned char*>(APP_ICON_32_PIXELS);
-
-    glfwSetWindowIcon(window, 2, window_icons);
-
-    if (!glfwVulkanSupported()) {
-        printf("GLFW: Vulkan Not Supported\n");
+    if (!SDL_Init(SDL_INIT_VIDEO))
+    {
+        fprintf(stderr, "Error: SDL_Init(): %s\n", SDL_GetError());
         return nullptr;
     }
 
-#if !defined(_WIN32)
-    glfwSetWindowAttrib(window, GLFW_DECORATED, GLFW_FALSE);
-#endif
-    UI::InitializeNativeWindow(window);
-#if defined(_WIN32)
-    glfwShowWindow(window);
-#endif
+    float main_scale = SDL_GetDisplayContentScale(SDL_GetPrimaryDisplay());
+    if (main_scale <= 0.0f)
+        main_scale = 1.0f;
+    if (out_scale) *out_scale = main_scale;
 
-    // Vulkan Setup
+    SDL_WindowFlags window_flags = SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE | SDL_WINDOW_BORDERLESS | SDL_WINDOW_HIDDEN | SDL_WINDOW_HIGH_PIXEL_DENSITY;
+    SDL_Window* window = SDL_CreateWindow(
+        "openrequest", 
+        static_cast<int>(1280 * main_scale), 
+        static_cast<int>(800 * main_scale), 
+        window_flags
+    );
+
+    if (!window)
+    {
+        fprintf(stderr, "Error: SDL_CreateWindow(): %s\n", SDL_GetError());
+        return nullptr;
+    }
+
+    // Set Window and Taskbar Icon
+    SDL_Surface* icon = SDL_CreateSurfaceFrom(
+        APP_ICON_48_WIDTH, APP_ICON_48_HEIGHT,
+        SDL_PIXELFORMAT_RGBA32,
+        const_cast<unsigned char*>(APP_ICON_48_PIXELS),
+        APP_ICON_48_WIDTH * 4
+    );
+    if (icon)
+    {
+        SDL_SetWindowIcon(window, icon);
+        SDL_DestroySurface(icon);
+    }
+
+    UI::InitializeNativeWindow(window);
+
+    // Vulkan Instance Extensions
     ImVector<const char*> extensions;
     uint32_t extensions_count = 0;
-    const char** glfw_extensions = glfwGetRequiredInstanceExtensions(&extensions_count);
+    const char* const* sdl_extensions = SDL_Vulkan_GetInstanceExtensions(&extensions_count);
     for (uint32_t i = 0; i < extensions_count; i++)
-        extensions.push_back(glfw_extensions[i]);
+        extensions.push_back(sdl_extensions[i]);
     SetupVulkan(extensions);
 
     // Create Window Surface & Swapchain
     VkSurfaceKHR surface;
-    VkResult err = glfwCreateWindowSurface(g_Instance, window, g_Allocator, &surface);
-    CheckVkResult(err);
+    if (!SDL_Vulkan_CreateSurface(window, g_Instance, g_Allocator, &surface))
+    {
+        fprintf(stderr, "Failed to create Vulkan surface: %s\n", SDL_GetError());
+        return nullptr;
+    }
 
-    int w, h;
-    glfwGetFramebufferSize(window, &w, &h);
+    int w = 0, h = 0;
+    SDL_GetWindowSizeInPixels(window, &w, &h);
     SetupVulkanWindow(&g_MainWindowData, surface, w, h);
+
+    SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
+    SDL_ShowWindow(window);
 
     // Setup Dear ImGui
     IMGUI_CHECKVERSION();
@@ -509,7 +493,7 @@ static GLFWwindow* Initialize(float* out_scale)
     style.FontScaleDpi = main_scale;
 
     // Setup Backends
-    ImGui_ImplGlfw_InitForVulkan(window, true);
+    ImGui_ImplSDL3_InitForVulkan(window);
 
     ImGui_ImplVulkan_InitInfo init_info = {};
     init_info.Instance = g_Instance;
@@ -532,10 +516,10 @@ static GLFWwindow* Initialize(float* out_scale)
 }
 
 // Handles window resize and swapchain updates
-static void HandleResize(GLFWwindow* window) 
+static void HandleResize(SDL_Window* window) 
 {
-    int fb_width, fb_height;
-    glfwGetFramebufferSize(window, &fb_width, &fb_height);
+    int fb_width = 0, fb_height = 0;
+    SDL_GetWindowSizeInPixels(window, &fb_width, &fb_height);
     if (fb_width > 0 && fb_height > 0 && (g_SwapChainRebuild || g_MainWindowData.Width != fb_width || g_MainWindowData.Height != fb_height))
     {
         ImGui_ImplVulkan_SetMinImageCount(g_MinImageCount);
@@ -562,18 +546,18 @@ static void RenderFrame(ImDrawData* draw_data, const ImVec4& clear_color)
 }
 
 // Teardown helper
-static void Cleanup(GLFWwindow* window) 
+static void Cleanup(SDL_Window* window) 
 {
     VkResult err = vkDeviceWaitIdle(g_Device);
     CheckVkResult(err);
     ImGui_ImplVulkan_Shutdown();
-    ImGui_ImplGlfw_Shutdown();
+    ImGui_ImplSDL3_Shutdown();
     ImGui::DestroyContext();
 
     CleanupVulkanWindow(&g_MainWindowData);
     CleanupVulkan();
 
-    glfwDestroyWindow(window);
-    glfwTerminate();
+    SDL_DestroyWindow(window);
+    SDL_Quit();
 }
 } // namespace UI::Vulkan

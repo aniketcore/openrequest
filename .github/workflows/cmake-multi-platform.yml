@@ -60,6 +60,7 @@ jobs:
           vulkan-tools \
           libfreetype6-dev \
           libcurl4-openssl-dev \
+          libsdl3-dev \
           libwayland-dev \
           wayland-protocols \
           libxkbcommon-dev \

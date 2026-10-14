@@ -1,9 +1,6 @@
 #include "ui_loop.h"
-#include <thread>
-#include <memory>
-#include<iostream>
-int main()
+
+int main(int argc, char* argv[])
 {
-    std::thread UIthread(UI::RunUILoop);
-    UIthread.join();
+    return UI::RunUILoop();
 }

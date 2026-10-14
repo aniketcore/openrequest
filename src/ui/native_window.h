@@ -1,10 +1,10 @@
 #pragma once
 
-struct GLFWwindow;
+struct SDL_Window;
 
 namespace UI
 {
-    // Real-time titlebar metrics updated per-frame by DrawTopChrome (used for Windows hit-testing)
+    // Real-time titlebar metrics updated per-frame by DrawTopChrome (used for hit-testing)
     extern float g_TitleBarHeight;
     extern float g_DragMinX;
     extern float g_DragMaxX;
@@ -12,18 +12,16 @@ namespace UI
     extern float g_MaxBtnMaxX;
     extern bool  g_MaxBtnHovered;
 
-    // Initializes OS-specific window integration (e.g. DWM frameless subclassing on Windows)
-    void InitializeNativeWindow(GLFWwindow* window);
-
-    // Initiates native OS window drag (e.g. _NET_WM_MOVERESIZE on X11, WM_SYSCOMMAND on Win32)
-    bool NativeStartWindowDrag(GLFWwindow* window);
+    // Initializes OS-specific window integration via SDL3 Hit Testing
+    void InitializeNativeWindow(SDL_Window* window);
 
     // Minimize window with native OS animation
-    void NativeMinimizeWindow(GLFWwindow* window);
+    void NativeMinimizeWindow(SDL_Window* window);
 
     // Maximize/restore window with native OS animation
-    void NativeMaximizeRestoreWindow(GLFWwindow* window);
+    void NativeMaximizeRestoreWindow(SDL_Window* window);
 
     // Check if the window is currently maximized
-    bool IsNativeWindowMaximized(GLFWwindow* window);
+    bool IsNativeWindowMaximized(SDL_Window* window);
 }
+

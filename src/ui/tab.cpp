@@ -1,6 +1,7 @@
 #include "tab.h"
 #include "sidebar.h"
 #include "native_window.h"
+#include <SDL3/SDL.h>
 #include <iostream>
 #include <algorithm>
 #include <fstream>
@@ -23,7 +24,7 @@ namespace UI
             return nullptr;
         }
 
-        void DrawWindowControls(GLFWwindow* window)
+        void DrawWindowControls(SDL_Window* window)
         {
             const float font_size = ImGui::GetFontSize();
             const float btn_h = ImGui::GetFrameHeight();
@@ -105,7 +106,9 @@ namespace UI
 
             if (ImGui::Button("##close_btn", ImVec2(btn_w, btn_h)))
             {
-                glfwSetWindowShouldClose(window, GLFW_TRUE);
+                SDL_Event event = {};
+                event.type = SDL_EVENT_QUIT;
+                SDL_PushEvent(&event);
             }
             {
                 ImVec2 p0 = ImGui::GetItemRectMin();
@@ -123,12 +126,8 @@ namespace UI
         }
     } // namespace
 
-    void DrawTopChrome(GLFWwindow* window)
+    void DrawTopChrome(SDL_Window* window)
     {
-        static bool native_drag_active = false;
-        static float drag_accum_x = 0.0f;
-        static float drag_accum_y = 0.0f;
-
         ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(6.0f, 7.0f));
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(6.0f, 0.0f));
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.0f, 0.0f));
@@ -197,43 +196,9 @@ namespace UI
         {
             ImGui::SameLine();
             ImGui::InvisibleButton("##window_drag", ImVec2(drag_width, btn_h));
-            if (ImGui::IsItemActive())
+            if (ImGui::IsItemActive() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
             {
-                if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
-                {
-                    UI::NativeMaximizeRestoreWindow(window);
-                }
-                else if (ImGui::IsMouseDragging(ImGuiMouseButton_Left, 2.0f))
-                {
-                    if (NativeStartWindowDrag(window))
-                    {
-                        native_drag_active = false;
-                    }
-                    else
-                    {
-                        drag_accum_x += ImGui::GetIO().MouseDelta.x;
-                        drag_accum_y += ImGui::GetIO().MouseDelta.y;
-
-                        int move_x = static_cast<int>(drag_accum_x);
-                        int move_y = static_cast<int>(drag_accum_y);
-
-                        if (move_x != 0 || move_y != 0)
-                        {
-                            int win_x = 0;
-                            int win_y = 0;
-                            glfwGetWindowPos(window, &win_x, &win_y);
-                            glfwSetWindowPos(window, win_x + move_x, win_y + move_y);
-                            drag_accum_x -= static_cast<float>(move_x);
-                            drag_accum_y -= static_cast<float>(move_y);
-                        }
-                    }
-                }
-            }
-            else
-            {
-                native_drag_active = false;
-                drag_accum_x = 0.0f;
-                drag_accum_y = 0.0f;
+                UI::NativeMaximizeRestoreWindow(window);
             }
         }
 

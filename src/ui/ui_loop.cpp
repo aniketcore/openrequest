@@ -10,28 +10,37 @@ namespace UI {
 int RunUILoop()
 {
     float main_scale = 1.0f;
-    GLFWwindow *window = UI::Vulkan::Initialize(&main_scale);
+    SDL_Window *window = UI::Vulkan::Initialize(&main_scale);
     if (!window)
         return 1;
 
     ImVec4 clear_color = ImVec4(0.1f, 0.1f, 0.12f, 1.00f);
 
     // Main loop
-    while (!glfwWindowShouldClose(window))
+    bool done = false;
+    while (!done)
     {
-        glfwPollEvents();
+        SDL_Event event;
+        while (SDL_PollEvent(&event))
+        {
+            ImGui_ImplSDL3_ProcessEvent(&event);
+            if (event.type == SDL_EVENT_QUIT)
+                done = true;
+            if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED && event.window.windowID == SDL_GetWindowID(window))
+                done = true;
+        }
 
         UI::Vulkan::HandleResize(window);
 
-        if (glfwGetWindowAttrib(window, GLFW_ICONIFIED) != 0)
+        if (SDL_GetWindowFlags(window) & SDL_WINDOW_MINIMIZED)
         {
-            ImGui_ImplGlfw_Sleep(10);
+            SDL_Delay(10);
             continue;
         }
 
         // Start Frame
         ImGui_ImplVulkan_NewFrame();
-        ImGui_ImplGlfw_NewFrame();
+        ImGui_ImplSDL3_NewFrame();
         ImGui::NewFrame();
 
         // Handle UI Zoom shortcuts (Ctrl+ / Ctrl- / Ctrl+MouseWheel)

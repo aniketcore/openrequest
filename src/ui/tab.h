@@ -1,11 +1,12 @@
 #pragma once
 #include "imgui.h"
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
 #include <string>
 #include <vector>
 #include <memory>
 #include "httptypes.h"
+
+struct SDL_Window;
+
 
 #include "httpengine.h"
 #include "TextEditor.h"
@@ -63,7 +64,7 @@ extern ImGuiID g_MainDockId;
 void FocusTab(int tab_id);
 void CloseTab(int tab_id);
 
-void DrawTopChrome(GLFWwindow* window);
+void DrawTopChrome(SDL_Window* window);
 void DrawTabContent();
 
 // Top navigation bar state & function
