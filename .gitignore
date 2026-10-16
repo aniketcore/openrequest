@@ -7,3 +7,4 @@ CMakeUserPresets.json
 a.out
 *.user
 artifacts/
+.vscode

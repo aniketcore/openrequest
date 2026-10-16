@@ -7,3 +7,6 @@
 [submodule "ext/ImGuiColorTextEdit"]
 	path = ext/ImGuiColorTextEdit
 	url = https://github.com/pthom/ImGuiColorTextEdit
+[submodule "ext/glaze"]
+	path = ext/glaze
+	url = https://github.com/stephenberry/glaze
