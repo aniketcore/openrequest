@@ -79,7 +79,15 @@ target_compile_definitions(openrequest PRIVATE
   VK_PROTOTYPES
   FONT_PATH=\"${CMAKE_CURRENT_SOURCE_DIR}/ext/imgui/misc/fonts/Roboto-Medium.ttf\"
   MONO_FONT_PATH=\"${CMAKE_CURRENT_SOURCE_DIR}/ext/imgui/misc/fonts/Cousine-Regular.ttf\"
+  ASSETS_PATH=\"${CMAKE_CURRENT_SOURCE_DIR}/assets/\"
   EDITOR_FONT_SIZE=16
+)
+
+# Copy assets next to executable in build directory
+add_custom_command(TARGET openrequest POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E copy_directory
+  ${CMAKE_CURRENT_SOURCE_DIR}/assets
+  $<TARGET_FILE_DIR:openrequest>/assets
 )
 
 if(MSVC)
@@ -95,4 +103,61 @@ target_link_libraries(openrequest PRIVATE
 
 if(WIN32)
   target_link_libraries(openrequest PRIVATE dwmapi)
+endif()
+
+# Installation
+include(GNUInstallDirs)
+
+install(TARGETS openrequest
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+  BUNDLE DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
+if(UNIX AND NOT APPLE)
+  install(FILES assets/openrequest.desktop
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/applications
+  )
+  install(FILES assets/icon.svg
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
+    RENAME openrequest.svg
+  )
+  install(FILES assets/icon.png
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/pixmaps
+    RENAME openrequest.png
+  )
+endif()
+
+# Uninstall target
+if(NOT TARGET uninstall)
+  file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake.in" [=[
+if(NOT EXISTS "@CMAKE_BINARY_DIR@/install_manifest.txt")
+  message(FATAL_ERROR "Cannot find install manifest: @CMAKE_BINARY_DIR@/install_manifest.txt")
+endif()
+
+file(STRINGS "@CMAKE_BINARY_DIR@/install_manifest.txt" files)
+foreach(file ${files})
+  message(STATUS "Uninstalling $ENV{DESTDIR}${file}")
+  if(IS_SYMLINK "$ENV{DESTDIR}${file}" OR EXISTS "$ENV{DESTDIR}${file}")
+    execute_process(
+      COMMAND "@CMAKE_COMMAND@" -E rm -f "$ENV{DESTDIR}${file}"
+      RESULT_VARIABLE rm_retval
+    )
+    if(NOT "${rm_retval}" STREQUAL 0)
+      message(FATAL_ERROR "Problem when removing $ENV{DESTDIR}${file}")
+    endif()
+  else()
+    message(STATUS "File $ENV{DESTDIR}${file} does not exist.")
+  endif()
+endforeach()
+]=])
+
+  configure_file(
+    "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake"
+    @ONLY
+  )
+
+  add_custom_target(uninstall
+    COMMAND ${CMAKE_COMMAND} -P "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake"
+  )
 endif()

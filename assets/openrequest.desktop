@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=OpenRequest
+Comment=Fast and native HTTP client
+Exec=openrequest
+Icon=openrequest
+Terminal=false
+Categories=Development;WebDevelopment;
+StartupNotify=true
+StartupWMClass=openrequest

@@ -1,10 +1,11 @@
 #include "tab.h"
-
+#include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <sstream>
 
 #include <imgui_stdlib.h>
+#include "imgui_internal.h"
 
 #include "httpengine.h"
 #include "imgui_helpers.h"
@@ -14,6 +15,20 @@ namespace UI
 {
     namespace
     {
+        bool Splitter(const char* id_str, float* size1, float* size2, float min_size1, float min_size2, float thickness = 6.0f)
+        {
+            ImGuiContext& g = *GImGui;
+            ImGuiWindow* window = g.CurrentWindow;
+            ImGuiID id = window->GetID(id_str);
+            ImVec2 pos = window->DC.CursorPos;
+            float width = ImGui::GetContentRegionAvail().x;
+            ImRect bb(pos, ImVec2(pos.x + width, pos.y + thickness));
+
+            ImGui::ItemSize(ImVec2(width, thickness));
+
+            return ImGui::SplitterBehavior(bb, id, ImGuiAxis_Y, size1, size2, min_size1, min_size2, 3.0f, 0.0f);
+        }
+
         void ConfigureTextEditor(TextEditor& editor, bool readOnly, const TextEditor::Language* language = nullptr)
         {
             editor.SetTabSize(2);
@@ -127,15 +142,27 @@ namespace UI
 
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f));
 
-        float max_height = ImGui::GetContentRegionAvail().y - 40.0f;
+        const float splitter_thickness = 6.0f;
+        const float min_request_h = 100.0f;
+        const float min_response_h = 100.0f;
+        float total_avail_y = ImGui::GetContentRegionAvail().y;
+
         if (this->requestHeight < 0.0f)
         {
-            this->requestHeight = ImGui::GetContentRegionAvail().y * 0.80f;
+            this->requestHeight = total_avail_y * 0.50f;
         }
-        if (this->requestHeight > max_height) this->requestHeight = max_height;
-        if (this->requestHeight < 40.0f) this->requestHeight = 40.0f;
 
-        ImGui::BeginChild("##request_panel", ImVec2(0.0f, this->requestHeight), false, ImGuiWindowFlags_NoScrollbar);
+        float max_request_h = total_avail_y - min_response_h - splitter_thickness;
+        if (max_request_h < min_request_h)
+            max_request_h = min_request_h;
+
+        this->requestHeight = std::clamp(this->requestHeight, min_request_h, max_request_h);
+        float response_height = total_avail_y - this->requestHeight - splitter_thickness;
+        if (response_height < min_response_h)
+            response_height = min_response_h;
+
+        // --- 1. Request Subwindow ---
+        ImGui::BeginChild("##request_panel", ImVec2(0.0f, this->requestHeight), ImGuiChildFlags_Borders, ImGuiWindowFlags_None);
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8.0f, 8.0f));
 
         ImGui::Text("HTTP Request Settings");
@@ -226,30 +253,32 @@ namespace UI
         ImGui::PopStyleVar();
         ImGui::EndChild();
 
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.20f, 0.22f, 0.27f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.35f, 0.40f, 0.50f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.28f, 0.32f, 0.40f, 1.0f));
+        // --- 2. Resizable Horizontal Splitter ---
+        Splitter("##hsplitter", &this->requestHeight, &response_height, min_request_h, min_response_h, splitter_thickness);
 
-        ImGui::Button("##hsplitter", ImVec2(-1.0f, 8.0f));
-        if (ImGui::IsItemActive())
-        {
-            this->requestHeight += ImGui::GetIO().MouseDelta.y;
-        }
-
-        ImGui::PopStyleColor(3);
-
-        ImGui::Dummy(ImVec2(0.0f, 8.0f));
-
-        ImGui::BeginChild("##response_panel", ImVec2(0.0f, 0.0f), false);
+        // --- 3. Response Subwindow ---
+        ImGui::BeginChild("##response_panel", ImVec2(0.0f, 0.0f), ImGuiChildFlags_Borders, ImGuiWindowFlags_None);
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8.0f, 8.0f));
 
+        // Subwindow Header
         ImGui::Text("Response");
-        ImGui::Separator();
-        ImGui::Spacing();
-
         if (req.gotresponse)
         {
             auto& resp = req.getresponse();
+            ImGui::SameLine();
+            if (resp.response_code >= 200 && resp.response_code < 300)
+                ImGui::TextColored(ImVec4(0.4f, 0.85f, 0.4f, 1.0f), "[%d OK]", resp.response_code);
+            else if (resp.response_code >= 400)
+                ImGui::TextColored(ImVec4(0.95f, 0.4f, 0.4f, 1.0f), "[%d Error]", resp.response_code);
+            else if (resp.response_code > 0)
+                ImGui::TextColored(ImVec4(0.9f, 0.8f, 0.3f, 1.0f), "[%d]", resp.response_code);
+
+            ImGui::SameLine();
+            float btn_group_width = 230.0f;
+            if (ImGui::GetContentRegionAvail().x > btn_group_width)
+            {
+                ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x - btn_group_width);
+            }
 
             ImGui::BeginGroup();
             if (ImGui::Button("Copy"))
@@ -266,9 +295,14 @@ namespace UI
             ImGui::SameLine();
             ImGui::Checkbox("Read-only", &responseReadOnly);
             ImGui::EndGroup();
+        }
 
-            ImGui::Spacing();
+        ImGui::Separator();
+        ImGui::Spacing();
 
+        if (req.gotresponse)
+        {
+            auto& resp = req.getresponse();
             if (resp.body.has_value())
             {
                 responseEditor->SetReadOnlyEnabled(responseReadOnly);
