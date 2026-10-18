@@ -33,15 +33,18 @@ public:
     void Draw() override;
 };
 
+#ifdef DELETE
+#undef DELETE
+#endif
+
 template <>
 struct glz::meta<HTTP::Method> {
-    using enum HTTP::Method;
     static constexpr auto value = enumerate(
-        "GET", GET,
-        "POST", POST,
-        "PUT", PUT,
-        "DELETE", DELETE,
-        "ERR", ERR
+        "GET", HTTP::GET,
+        "POST", HTTP::POST,
+        "PUT", HTTP::PUT,
+        "DELETE", HTTP::DELETE,
+        "ERR", HTTP::ERR
     );
 };
 

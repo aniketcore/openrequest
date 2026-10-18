@@ -3,6 +3,11 @@
 #include <string>
 #include <unordered_map>
 #include <optional>
+
+#ifdef DELETE
+#undef DELETE
+#endif
+
 namespace HTTP{
 
     enum Method{

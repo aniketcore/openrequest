@@ -1,6 +1,11 @@
 #pragma once
 
 #include <curl/curl.h>
+
+#ifdef DELETE
+#undef DELETE
+#endif
+
 #include <string>
 #include <thread>
 #include <algorithm>
