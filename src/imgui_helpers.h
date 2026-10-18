@@ -8,6 +8,7 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
 #include <string>
+#include "app_icon.h"
 #include "native_window.h"
 
 // Volk headers
@@ -415,25 +416,13 @@ static SDL_Window* Initialize(float* out_scale)
         return nullptr;
     }
 
-    // Set Window and Taskbar Icon from assets
-    SDL_Surface* icon = nullptr;
-    const char* base_path = SDL_GetBasePath();
-    if (base_path)
-    {
-        std::string path = std::string(base_path) + "assets/icon.png";
-        icon = SDL_LoadPNG(path.c_str());
-    }
-    if (!icon)
-    {
-#ifdef ASSETS_PATH
-        icon = SDL_LoadPNG(ASSETS_PATH "icon.png");
-#endif
-    }
-    if (!icon)
-    {
-        icon = SDL_LoadPNG("assets/icon.png");
-    }
-
+    // Set Window and Taskbar Icon (embedded multi-res icon)
+    SDL_Surface* icon = SDL_CreateSurfaceFrom(
+        APP_ICON_48_WIDTH, APP_ICON_48_HEIGHT,
+        SDL_PIXELFORMAT_RGBA32,
+        const_cast<unsigned char*>(APP_ICON_48_PIXELS),
+        APP_ICON_48_WIDTH * 4
+    );
     if (icon)
     {
         SDL_SetWindowIcon(window, icon);
