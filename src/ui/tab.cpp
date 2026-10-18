@@ -1,4 +1,5 @@
 #include "tab.h"
+#include "collection.h"
 #include "sidebar.h"
 #include "native_window.h"
 #include <SDL3/SDL.h>
@@ -7,7 +8,7 @@
 #include <fstream>
 #include <imgui_stdlib.h>
 #include "imgui_helpers.h"
-
+#include <glaze/yaml.hpp>
 namespace UI
 {
     namespace
@@ -233,7 +234,11 @@ namespace UI
     std::vector<std::unique_ptr<Tab>> InitializeTabs()
     {
         std::vector<std::unique_ptr<Tab>> tabs;
-        tabs.push_back(std::make_unique<HttpTab>(1, "Tab 1"));
+        auto res = std::make_shared<HttpResource>();
+        res->id = g_NextResourceId++;
+        res->name = "Tab 1";
+        g_Resources.push_back(res);
+        tabs.push_back(std::make_unique<Tab>(1, "Tab 1", res));
         return tabs;
     }
 
@@ -241,46 +246,6 @@ namespace UI
     int g_ActiveTabId = 1;
     int g_NextTabId = 2;
     int g_SelectedTopTab = 0;
-    
-    std::vector<SavedRequest> g_Collection;
-
-    void SaveCollectionToFile(const std::string& path) {
-        std::ofstream out(path);
-        if (!out) return;
-        out << g_Collection.size() << "\n";
-        for (const auto& req : g_Collection) {
-            out << req.serialized.size() << "\n" << req.serialized;
-        }
-    }
-
-    void LoadCollectionFromFile(const std::string& path) {
-        std::ifstream in(path);
-        if (!in) return;
-        g_Collection.clear();
-        std::string line;
-        if (std::getline(in, line)) {
-            try {
-                int count = std::stoi(line);
-                for (int i=0; i<count; ++i) {
-                    if (std::getline(in, line)) {
-                        int size = std::stoi(line);
-                        std::string serialized;
-                        serialized.resize(size);
-                        in.read(&serialized[0], size);
-                        
-                        // Extract name from first line of serialized string
-                        std::string name = "Unnamed";
-                        size_t pos = serialized.find('\n');
-                        if (pos != std::string::npos) {
-                            name = serialized.substr(0, pos);
-                        }
-                        g_Collection.push_back({name, serialized});
-                    }
-                }
-            } catch (...) {}
-        }
-    }
-
 
     ImGuiID g_MainDockId = 0;
     static int g_TabToFocus = -1;
@@ -309,6 +274,24 @@ namespace UI
         }
     }
 
+    void OpenOrFocusResource(const std::shared_ptr<Resource>& res)
+    {
+        if (!res) return;
+
+        for (auto& tab : g_Tabs)
+        {
+            if (tab->resource == res)
+            {
+                FocusTab(tab->id);
+                return;
+            }
+        }
+
+        int new_id = g_NextTabId++;
+        g_Tabs.push_back(std::make_unique<Tab>(new_id, res->name, res));
+        FocusTab(new_id);
+    }
+
     void DrawTabContent()
     {
         if (g_Tabs.empty())
@@ -320,7 +303,7 @@ namespace UI
             if (ImGui::Begin("Workspace"))
             {
                 ImGui::Text("No open tabs.");
-                ImGui::Text("Click the '+' button in the sidebar to create an HTTP request.");
+                ImGui::Text("Click a resource in the sidebar to open it, or '+' to create one.");
             }
             ImGui::End();
             ImGui::PopStyleVar();
@@ -348,6 +331,11 @@ namespace UI
             ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(16.0f, 16.0f));
             if (ImGui::Begin(window_title, &open))
             {
+                if (ImGui::IsWindowDocked())
+                {
+                    g_MainDockId = ImGui::GetWindowDockID();
+                }
+
                 if (ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows))
                 {
                     g_ActiveTabId = tab->id;

@@ -37,6 +37,23 @@ endif()
 set(IMGUI_DIR ext/imgui)
 set(IMGUI_COLOR_TEXT_EDIT_DIR ext/ImGuiColorTextEdit)
 
+# Glaze JSON library: try system / vcpkg package first; fallback to ext/glaze or FetchContent
+find_package(glaze CONFIG QUIET)
+if(NOT TARGET glaze::glaze)
+  if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/ext/glaze/CMakeLists.txt")
+    add_subdirectory(ext/glaze EXCLUDE_FROM_ALL)
+  else()
+    include(FetchContent)
+    FetchContent_Declare(
+      glaze
+      GIT_REPOSITORY https://github.com/stephenberry/glaze.git
+      GIT_TAG v9.0.0
+    )
+    FetchContent_MakeAvailable(glaze)
+  endif()
+endif()
+
+
 # Gather all source files
 file(GLOB_RECURSE sources CONFIGURE_DEPENDS src/*.cpp src/**/*.cpp)
 list(FILTER sources EXCLUDE REGEX "gtk_glarea_demo\\.cpp$")
@@ -66,6 +83,8 @@ target_include_directories(openrequest PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
   ${CMAKE_CURRENT_SOURCE_DIR}/src/ui
   ${CMAKE_CURRENT_SOURCE_DIR}/src/app
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/resource
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/collection
   ${CMAKE_CURRENT_SOURCE_DIR}/${IMGUI_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/${IMGUI_DIR}/backends
   ${CMAKE_CURRENT_SOURCE_DIR}/${IMGUI_DIR}/misc/cpp
@@ -99,6 +118,7 @@ target_link_libraries(openrequest PRIVATE
   Vulkan::Vulkan
   CURL::libcurl
   Freetype::Freetype
+  glaze::glaze
 )
 
 if(WIN32)

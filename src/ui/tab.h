@@ -3,57 +3,32 @@
 #include <string>
 #include <vector>
 #include <memory>
-#include "httptypes.h"
+#include "resource.h"
+#include "http_resource.h"
 
 struct SDL_Window;
 
-
-#include "httpengine.h"
-#include "TextEditor.h"
-
 namespace UI {
 
+// Alias for transition / backward compatibility
+using HttpTab = ::HttpResource;
+
+// Tab is purely the UI view construct
 class Tab {
 public:
     int id;
     std::string name;
+    std::shared_ptr<Resource> resource;
 
-    Tab(int id, std::string name) : id(id), name(std::move(name)) {}
-    virtual ~Tab() = default;
+    Tab(int id, std::string name, std::shared_ptr<Resource> resource = nullptr)
+        : id(id), name(std::move(name)), resource(std::move(resource)) {}
 
-    virtual void Draw() = 0;
+    void Draw() {
+        if (resource) {
+            resource->Draw();
+        }
+    }
 };
-
-class HttpTab : public Tab {
-public:
-    std::string url;
-    HTTP::Method method;
-    float requestHeight = -1.0f;
-    
-    HTTP::Engine eng;
-    HTTP::Request req;
-    std::unique_ptr<TextEditor> requestEditor;
-    std::unique_ptr<TextEditor> responseEditor;
-    std::string lastResponseText;
-    bool requestEditorInitialized = false;
-
-    std::vector<std::pair<std::string, std::string>> requestHeaders;
-
-    HttpTab(int id, std::string name) : Tab(id, std::move(name)), method(HTTP::GET) {}
-
-    void Draw() override;
-    
-    std::string SerializeToString(const std::string& name = "Unnamed");
-    void DeserializeFromString(const std::string& serialized);
-};
-
-struct SavedRequest {
-    std::string name;
-    std::string serialized;
-};
-extern std::vector<SavedRequest> g_Collection;
-void SaveCollectionToFile(const std::string& path);
-void LoadCollectionFromFile(const std::string& path);
 
 // Global active tab state declarations
 extern std::vector<std::unique_ptr<Tab>> g_Tabs;
@@ -63,6 +38,7 @@ extern ImGuiID g_MainDockId;
 
 void FocusTab(int tab_id);
 void CloseTab(int tab_id);
+void OpenOrFocusResource(const std::shared_ptr<Resource>& res);
 
 void DrawTopChrome(SDL_Window* window);
 void DrawTabContent();

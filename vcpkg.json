@@ -6,6 +6,7 @@
   "dependencies": [
     "curl",
     "freetype",
+    "glaze",
     "sdl3"
   ]
 }

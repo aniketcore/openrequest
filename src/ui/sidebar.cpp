@@ -1,40 +1,43 @@
 #include "sidebar.h"
 #include "tab.h"
+#include "collection.h"
+#include "http_resource.h"
 #include <cstdio>
 #include <algorithm>
 #include <memory>
 
 namespace UI {
 
-
 namespace
 {
-    void RenderTabList()
+    void RenderResourceList()
     {
-        static int renaming_tab_id = -1;
-        static int renaming_tab_id_prev = -1;
+        static int renaming_id = -1;
+        static int renaming_id_prev = -1;
         static char rename_buf[64] = "";
 
         float close_btn_w = ImGui::GetFrameHeight();
         float item_spacing_x = ImGui::GetStyle().ItemSpacing.x;
 
-        for (size_t item = 0; item < g_Tabs.size(); item++)
+        for (size_t i = 0; i < g_Resources.size(); ++i)
         {
-            int tab_id = g_Tabs[item]->id;
-            float tab_btn_w = ImGui::GetContentRegionAvail().x - close_btn_w - item_spacing_x;
-            if (tab_btn_w < 1.0f)
-                tab_btn_w = 1.0f;
+            auto& res = g_Resources[i];
+            if (!res) continue;
 
-            ImGui::PushID(tab_id);
+            float res_btn_w = ImGui::GetContentRegionAvail().x - close_btn_w - item_spacing_x;
+            if (res_btn_w < 1.0f)
+                res_btn_w = 1.0f;
 
-            bool is_renaming = (renaming_tab_id == tab_id);
+            ImGui::PushID(res->id);
+
+            bool is_renaming = (renaming_id == res->id);
             if (is_renaming)
             {
                 static bool set_focus = false;
-                if (renaming_tab_id_prev != renaming_tab_id)
+                if (renaming_id_prev != renaming_id)
                 {
                     set_focus = true;
-                    renaming_tab_id_prev = renaming_tab_id;
+                    renaming_id_prev = renaming_id;
                 }
                 if (set_focus)
                 {
@@ -42,27 +45,47 @@ namespace
                     set_focus = false;
                 }
 
-                ImGui::SetNextItemWidth(tab_btn_w);
+                ImGui::SetNextItemWidth(res_btn_w);
                 if (ImGui::InputText("##rename", rename_buf, sizeof(rename_buf), ImGuiInputTextFlags_EnterReturnsTrue | ImGuiInputTextFlags_AutoSelectAll))
                 {
-                    g_Tabs[item]->name = rename_buf;
-                    renaming_tab_id = -1;
+                    res->name = rename_buf;
+                    for (auto& tab : g_Tabs)
+                    {
+                        if (tab->resource == res)
+                            tab->name = rename_buf;
+                    }
+                    renaming_id = -1;
                 }
                 if (ImGui::IsItemDeactivated())
                 {
-                    g_Tabs[item]->name = rename_buf;
-                    renaming_tab_id = -1;
+                    res->name = rename_buf;
+                    for (auto& tab : g_Tabs)
+                    {
+                        if (tab->resource == res)
+                            tab->name = rename_buf;
+                    }
+                    renaming_id = -1;
                 }
             }
             else
             {
-                bool is_active = (g_ActiveTabId == tab_id);
+                // Check if the currently active tab displays this resource
+                bool is_active = false;
+                for (auto& tab : g_Tabs)
+                {
+                    if (tab->id == g_ActiveTabId && tab->resource == res)
+                    {
+                        is_active = true;
+                        break;
+                    }
+                }
+
                 if (is_active)
                     ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyle().Colors[ImGuiCol_ButtonActive]);
 
-                if (ImGui::Button(g_Tabs[item]->name.c_str(), ImVec2(tab_btn_w, 0.0f)))
+                if (ImGui::Button(res->name.c_str(), ImVec2(res_btn_w, 0.0f)))
                 {
-                    FocusTab(tab_id);
+                    OpenOrFocusResource(res);
                 }
 
                 if (is_active)
@@ -70,8 +93,8 @@ namespace
 
                 if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(0))
                 {
-                    renaming_tab_id = tab_id;
-                    snprintf(rename_buf, sizeof(rename_buf), "%s", g_Tabs[item]->name.c_str());
+                    renaming_id = res->id;
+                    snprintf(rename_buf, sizeof(rename_buf), "%s", res->name.c_str());
                 }
             }
 
@@ -81,9 +104,11 @@ namespace
             ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.8f, 0.2f, 0.2f, 0.6f));
             if (ImGui::Button("x", ImVec2(close_btn_w, 0.0f)))
             {
-                if (renaming_tab_id == tab_id)
-                    renaming_tab_id = -1;
-                CloseTab(tab_id);
+                if (renaming_id == res->id)
+                    renaming_id = -1;
+
+                auto to_delete = res;
+                DeleteResource(to_delete);
                 ImGui::PopStyleColor(2);
                 ImGui::PopID();
                 break;
@@ -99,7 +124,7 @@ void RenderSidebar()
 {
     if (ImGui::Begin("Collections"))
     {
-        ImGui::Text("Requests");
+        ImGui::Text("Collection");
         ImGui::SameLine();
 
         float button_width = ImGui::GetFrameHeight();
@@ -107,44 +132,28 @@ void RenderSidebar()
 
         if (ImGui::Button("+", ImVec2(button_width, button_width)))
         {
+            int new_id = g_NextResourceId++;
             char default_name[32];
-            snprintf(default_name, sizeof(default_name), "HTTP Tab %d", g_NextTabId);
-            g_Tabs.push_back(std::make_unique<HttpTab>(g_NextTabId, default_name));
-            FocusTab(g_NextTabId);
-            g_NextTabId++;
+            snprintf(default_name, sizeof(default_name), "HTTP %d", new_id);
+            auto res = std::make_shared<HttpResource>();
+            res->id = new_id;
+            res->name = default_name;
+            g_Resources.push_back(res);
+            OpenOrFocusResource(res);
         }
 
         ImGui::Separator();
         ImGui::Spacing();
 
-        if (ImGui::Button("Save##col")) UI::SaveCollectionToFile("collection.orq");
+        if (ImGui::Button("Save##col")) UI::SaveCollectionToFile("collection.yaml");
         ImGui::SameLine();
-        if (ImGui::Button("Load##col")) UI::LoadCollectionFromFile("collection.orq");
-
-        ImGui::Spacing();
-        for (size_t i = 0; i < UI::g_Collection.size(); ++i)
-        {
-            if (ImGui::Selectable(UI::g_Collection[i].name.c_str()))
-            {
-                for (auto& t : g_Tabs)
-                {
-                    if (t->id == g_ActiveTabId)
-                    {
-                        if (auto* http_tab = dynamic_cast<UI::HttpTab*>(t.get()))
-                        {
-                            http_tab->DeserializeFromString(UI::g_Collection[i].serialized);
-                        }
-                        break;
-                    }
-                }
-            }
-        }
+        if (ImGui::Button("Load##col")) UI::LoadCollectionFromFile("collection.yaml");
 
         ImGui::Spacing();
         ImGui::Separator();
-        ImGui::Text("Open Tabs");
+        ImGui::Text("Resources");
         ImGui::Spacing();
-        RenderTabList();
+        RenderResourceList();
     }
     ImGui::End();
 }
