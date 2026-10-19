@@ -56,8 +56,6 @@ jobs:
           cmake \
           pkg-config \
           clang \
-          libvulkan-dev \
-          vulkan-tools \
           libfreetype6-dev \
           libcurl4-openssl-dev \
           libwayland-dev \
@@ -70,14 +68,6 @@ jobs:
           libxcursor-dev \
           libxi-dev \
           patchelf
-
-    - name: Install Vulkan SDK (Windows)
-      if: runner.os == 'Windows'
-      uses: jakoch/install-vulkan-sdk-action@v1
-      with:
-        vulkan_version: 'latest'
-        install_runtime: true
-        cache: true
 
     - name: Install dependencies via vcpkg (Windows)
       if: runner.os == 'Windows'

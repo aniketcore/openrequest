@@ -25,7 +25,7 @@ public:
     std::vector<std::pair<std::string, std::string>> requestHeaders;
 
     HttpResource() : method(HTTP::GET) {}
-    explicit HttpResource(int id, std::string name) : Resource(id, std::move(name)), method(HTTP::GET) {}
+    explicit HttpResource(uint64_t id, std::string name) : Resource(id, std::move(name)), method(HTTP::GET) {}
     HttpResource(HttpResource&&) noexcept = default;
     HttpResource& operator=(HttpResource&&) noexcept = default;
 

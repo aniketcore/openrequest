@@ -140,7 +140,7 @@ void HttpResource::Draw()
     ImGui::Text("Request Body");
     ImGui::Separator();
 
-    ImFont* editorFont = UI::Vulkan::g_MonoFont ? UI::Vulkan::g_MonoFont : ImGui::GetFont();
+    ImFont* editorFont = UI::GPU::g_MonoFont ? UI::GPU::g_MonoFont : ImGui::GetFont();
     ImGui::PushFont(editorFont);
     requestEditor->Render("##request_body_editor", ImVec2(-1.0f, 160.0f), true);
     ImGui::PopFont();
@@ -223,7 +223,7 @@ void HttpResource::Draw()
         if (resp.body.has_value())
         {
             responseEditor->SetReadOnlyEnabled(responseReadOnly);
-            ImFont* editorFont = UI::Vulkan::g_MonoFont ? UI::Vulkan::g_MonoFont : ImGui::GetFont();
+            ImFont* editorFont = UI::GPU::g_MonoFont ? UI::GPU::g_MonoFont : ImGui::GetFont();
             ImGui::PushFont(editorFont);
             responseEditor->Render("##response_editor", ImGui::GetContentRegionAvail(), true);
             ImGui::PopFont();

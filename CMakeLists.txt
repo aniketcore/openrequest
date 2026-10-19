@@ -16,7 +16,6 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Dependencies
-find_package(Vulkan REQUIRED)
 find_package(Freetype REQUIRED)
 find_package(CURL REQUIRED)
 
@@ -68,7 +67,7 @@ add_executable(openrequest
   ${sources}
   ${APP_RESOURCES}
   ${IMGUI_DIR}/backends/imgui_impl_sdl3.cpp
-  ${IMGUI_DIR}/backends/imgui_impl_vulkan.cpp
+  ${IMGUI_DIR}/backends/imgui_impl_sdlgpu3.cpp
   ${IMGUI_DIR}/imgui.cpp
   ${IMGUI_DIR}/imgui_draw.cpp
   ${IMGUI_DIR}/imgui_demo.cpp
@@ -95,7 +94,6 @@ target_include_directories(openrequest PRIVATE
 target_compile_definitions(openrequest PRIVATE
   NOMINMAX
   WIN32_LEAN_AND_MEAN
-  VK_PROTOTYPES
   FONT_PATH=\"${CMAKE_CURRENT_SOURCE_DIR}/ext/imgui/misc/fonts/Roboto-Medium.ttf\"
   MONO_FONT_PATH=\"${CMAKE_CURRENT_SOURCE_DIR}/ext/imgui/misc/fonts/Cousine-Regular.ttf\"
   ASSETS_PATH=\"${CMAKE_CURRENT_SOURCE_DIR}/assets/\"
@@ -115,7 +113,6 @@ endif()
 
 target_link_libraries(openrequest PRIVATE
   SDL3::SDL3
-  Vulkan::Vulkan
   CURL::libcurl
   Freetype::Freetype
   glaze::glaze

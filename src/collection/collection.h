@@ -3,6 +3,7 @@
 #include <vector>
 #include <variant>
 #include <memory>
+#include <cstdint>
 #include <glaze/yaml.hpp>
 #include "resource.h"
 #include "http_resource.h"
@@ -35,7 +36,8 @@ struct glz::meta<Collection> {
 namespace UI {
     // Collection resources (master list owned by the collection)
     extern std::vector<std::shared_ptr<Resource>> g_Resources;
-    extern int g_NextResourceId;
+
+    uint64_t GenerateUID();
 
     void SaveCollectionToFile(const std::string& path = "collection.yaml");
     void LoadCollectionFromFile(const std::string& path = "collection.yaml");
@@ -43,6 +45,6 @@ namespace UI {
     void AddResource(std::shared_ptr<Resource> res);
     void DeleteResource(const std::shared_ptr<Resource>& res);
 
-    std::shared_ptr<Resource> FindResourceById(int id);
-    int FindResourceIndexById(int id);
+    std::shared_ptr<Resource> FindResourceById(uint64_t id);
+    int FindResourceIndexById(uint64_t id);
 }

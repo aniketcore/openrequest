@@ -10,7 +10,7 @@ namespace UI {
 int RunUILoop()
 {
     float main_scale = 1.0f;
-    SDL_Window *window = UI::Vulkan::Initialize(&main_scale);
+    SDL_Window *window = UI::GPU::Initialize(&main_scale);
     if (!window)
         return 1;
 
@@ -30,7 +30,7 @@ int RunUILoop()
                 done = true;
         }
 
-        UI::Vulkan::HandleResize(window);
+        UI::GPU::HandleResize(window);
 
         if (SDL_GetWindowFlags(window) & SDL_WINDOW_MINIMIZED)
         {
@@ -39,7 +39,7 @@ int RunUILoop()
         }
 
         // Start Frame
-        ImGui_ImplVulkan_NewFrame();
+        ImGui_ImplSDLGPU3_NewFrame();
         ImGui_ImplSDL3_NewFrame();
         ImGui::NewFrame();
 
@@ -110,11 +110,11 @@ int RunUILoop()
 
         // End Frame & Submit Draw Calls
         ImGui::Render();
-        UI::Vulkan::RenderFrame(ImGui::GetDrawData(), clear_color);
+        UI::GPU::RenderFrame(window, ImGui::GetDrawData(), clear_color);
 
     }
 
-    UI::Vulkan::Cleanup(window);
+    UI::GPU::Cleanup(window);
     return 0;
 }
 

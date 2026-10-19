@@ -1,5 +1,6 @@
 #pragma once
 #include <string>
+#include <cstdint>
 
 enum class ResourceType {
     HTTP,
@@ -8,11 +9,11 @@ enum class ResourceType {
 
 class Resource {
 public:
-    int id = 0;
+    uint64_t id = 0;
     std::string name;
 
     Resource() = default;
-    explicit Resource(int id, std::string name) : id(id), name(std::move(name)) {}
+    explicit Resource(uint64_t id, std::string name) : id(id), name(std::move(name)) {}
     virtual ~Resource() = default;
 
     virtual ResourceType GetType() const = 0;

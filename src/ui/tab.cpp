@@ -129,17 +129,22 @@ namespace UI
 
     void DrawTopChrome(SDL_Window* window)
     {
-        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(6.0f, 7.0f));
-        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(6.0f, 0.0f));
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.0f, 0.0f));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+        bool menu_open = ImGui::BeginMainMenuBar();
+        ImGui::PopStyleVar();
 
-        if (!ImGui::BeginMainMenuBar())
-        {
-            ImGui::PopStyleVar(3);
+        if (!menu_open)
             return;
-        }
 
-        // 1. App Title (Leftmost) - aligned to menu frame padding
+        const float bar_width = ImGui::GetWindowWidth();
+        const float bar_height = ImGui::GetWindowHeight();
+        const float btn_h = bar_height;
+        const float btn_w = btn_h * 1.35f;
+        const float window_ctrls_w = btn_w * 3.0f;
+        const float ctrls_start_x = bar_width - window_ctrls_w;
+
+        // 1. App Title (Leftmost with nice breathing room)
+        ImGui::SetCursorPosX(ImGui::GetStyle().FramePadding.x);
         ImGui::AlignTextToFramePadding();
         ImGui::TextUnformatted("openrequest");
         ImGui::SameLine();
@@ -174,28 +179,17 @@ namespace UI
             ImGui::EndMenu();
         }
 
-        // 3. Calculate right section width & dynamic center drag width
-        Tab* active_tab = GetActiveTab();
-        std::string tab_name = active_tab ? active_tab->name : "";
-        float tab_text_w = tab_name.empty() ? 0.0f : ImGui::CalcTextSize(tab_name.c_str()).x + 16.0f;
+        float menus_end_x = ImGui::GetCursorPosX();
 
-        const float btn_h = ImGui::GetFrameHeight();
-        const float btn_w = btn_h * 1.35f;
-        const float window_ctrls_w = btn_w * 3.0f;
-        const float right_section_w = tab_text_w + window_ctrls_w;
-
-        float current_x = ImGui::GetCursorPosX();
-        float bar_width = ImGui::GetWindowWidth();
-        float drag_width = bar_width - current_x - right_section_w;
-
+        // 3. Center Draggable Area (covers the entire span from menus to window controls)
+        float drag_width = ctrls_start_x - menus_end_x;
         UI::g_TitleBarHeight = btn_h;
-        UI::g_DragMinX = current_x;
-        UI::g_DragMaxX = current_x + drag_width;
+        UI::g_DragMinX = menus_end_x;
+        UI::g_DragMaxX = ctrls_start_x;
 
-        // 4. Center Draggable Area (fills the remaining empty space)
-        if (drag_width > 10.0f)
+        if (drag_width > 0.0f)
         {
-            ImGui::SameLine();
+            ImGui::SameLine(0.0f, 0.0f);
             ImGui::InvisibleButton("##window_drag", ImVec2(drag_width, btn_h));
             if (ImGui::IsItemActive() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
             {
@@ -203,31 +197,36 @@ namespace UI
             }
         }
 
-        // 5. Right Section: Active Tab + Window Controls (flush to window edge)
-        ImGui::SameLine();
-        ImGui::SetCursorPosX(bar_width - right_section_w);
+        // 4. Window Controls (pinned 100% flush to the right edge)
+        ImGui::SameLine(0.0f, 0.0f);
+        ImGui::SetCursorPosX(ctrls_start_x);
+        DrawWindowControls(window);
+
+        // 5. Centered Document/Tab Title (rendered directly in the middle of the title bar)
+        Tab* active_tab = GetActiveTab();
+        std::string tab_name = active_tab ? active_tab->name : "";
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        ImVec2 bar_p0 = ImGui::GetWindowPos();
 
         if (!tab_name.empty())
         {
-            ImGui::AlignTextToFramePadding();
-            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.6f, 0.6f, 0.6f, 1.0f));
-            ImGui::TextUnformatted(tab_name.c_str());
-            ImGui::PopStyleColor();
-            ImGui::SameLine();
+            float text_w = ImGui::CalcTextSize(tab_name.c_str()).x;
+            float center_x = (bar_width - text_w) * 0.5f;
+
+            // Only display if there's enough space between menus and window controls
+            if (center_x > menus_end_x + 16.0f && (center_x + text_w) < ctrls_start_x - 16.0f)
+            {
+                ImVec2 text_pos = ImVec2(bar_p0.x + center_x, bar_p0.y + (bar_height - ImGui::GetFontSize()) * 0.5f);
+                dl->AddText(text_pos, IM_COL32(180, 180, 180, 255), tab_name.c_str());
+            }
         }
 
-        DrawWindowControls(window);
-
-        // Subtle bottom border separating titlebar from content
-        ImDrawList* dl = ImGui::GetWindowDrawList();
-        ImVec2 bar_p0 = ImGui::GetWindowPos();
-        float bar_h = ImGui::GetWindowHeight();
-        dl->AddLine(ImVec2(bar_p0.x, bar_p0.y + bar_h - 1.0f),
-                    ImVec2(bar_p0.x + bar_width, bar_p0.y + bar_h - 1.0f),
+        // 6. Subtle bottom border separating titlebar from content
+        dl->AddLine(ImVec2(bar_p0.x, bar_p0.y + bar_height - 1.0f),
+                    ImVec2(bar_p0.x + bar_width, bar_p0.y + bar_height - 1.0f),
                     IM_COL32(50, 50, 54, 255));
 
         ImGui::EndMainMenuBar();
-        ImGui::PopStyleVar(3);
     }
 
     // Helper function to initialize global tabs vector
@@ -235,7 +234,7 @@ namespace UI
     {
         std::vector<std::unique_ptr<Tab>> tabs;
         auto res = std::make_shared<HttpResource>();
-        res->id = g_NextResourceId++;
+        res->id = UI::GenerateUID();
         res->name = "Tab 1";
         g_Resources.push_back(res);
         tabs.push_back(std::make_unique<Tab>(1, "Tab 1", res));
@@ -304,6 +303,7 @@ namespace UI
             {
                 ImGui::Text("No open tabs.");
                 ImGui::Text("Click a resource in the sidebar to open it, or '+' to create one.");
+
             }
             ImGui::End();
             ImGui::PopStyleVar();

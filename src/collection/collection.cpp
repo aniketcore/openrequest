@@ -2,23 +2,34 @@
 #include "tab.h"
 #include <iostream>
 #include <algorithm>
+#include <random>
+#include <chrono>
 
 namespace UI
 {
     std::vector<std::shared_ptr<Resource>> g_Resources;
-    int g_NextResourceId = 1;
+
+    uint64_t GenerateUID()
+    {
+        thread_local std::mt19937_64 rng([]() {
+            std::random_device rd;
+            uint64_t seed = (static_cast<uint64_t>(rd()) << 32) ^ rd();
+            auto now = static_cast<uint64_t>(std::chrono::high_resolution_clock::now().time_since_epoch().count());
+            return seed ^ now;
+        }());
+
+        // 15-digit random integer (within IEEE-754 double precision limit, collision-free)
+        std::uniform_int_distribution<uint64_t> dist(100000000000000ULL, 999999999999999ULL);
+        return dist(rng);
+    }
 
     void AddResource(std::shared_ptr<Resource> res)
     {
         if (res)
         {
-            if (res->id <= 0)
+            if (res->id == 0)
             {
-                res->id = g_NextResourceId++;
-            }
-            else if (res->id >= g_NextResourceId)
-            {
-                g_NextResourceId = res->id + 1;
+                res->id = GenerateUID();
             }
             g_Resources.push_back(std::move(res));
         }
@@ -58,7 +69,7 @@ namespace UI
         }
     }
 
-    std::shared_ptr<Resource> FindResourceById(int id)
+    std::shared_ptr<Resource> FindResourceById(uint64_t id)
     {
         for (const auto& res : g_Resources)
         {
@@ -70,7 +81,7 @@ namespace UI
         return nullptr;
     }
 
-    int FindResourceIndexById(int id)
+    int FindResourceIndexById(uint64_t id)
     {
         for (size_t i = 0; i < g_Resources.size(); ++i)
         {
@@ -141,18 +152,14 @@ namespace UI
                 using T = std::decay_t<decltype(res)>;
                 if constexpr (std::is_same_v<T, HttpResource>)
                 {
-                    if (res.id <= 0)
+                    if (res.id == 0)
                     {
-                        res.id = g_NextResourceId++;
-                    }
-                    else if (res.id >= g_NextResourceId)
-                    {
-                        g_NextResourceId = res.id + 1;
+                        res.id = GenerateUID();
                     }
 
                     if (res.name.empty())
                     {
-                        res.name = "HTTP " + std::to_string(res.id);
+                        res.name = "HTTP Request";
                     }
 
                     auto existing = FindResourceById(res.id);

@@ -12,8 +12,8 @@ namespace
 {
     void RenderResourceList()
     {
-        static int renaming_id = -1;
-        static int renaming_id_prev = -1;
+        static uint64_t renaming_id = 0;
+        static uint64_t renaming_id_prev = 0;
         static char rename_buf[64] = "";
 
         float close_btn_w = ImGui::GetFrameHeight();
@@ -28,9 +28,9 @@ namespace
             if (res_btn_w < 1.0f)
                 res_btn_w = 1.0f;
 
-            ImGui::PushID(res->id);
+            ImGui::PushID(static_cast<int>(res->id ^ (res->id >> 32)));
 
-            bool is_renaming = (renaming_id == res->id);
+            bool is_renaming = (renaming_id == res->id && res->id != 0);
             if (is_renaming)
             {
                 static bool set_focus = false;
@@ -54,7 +54,7 @@ namespace
                         if (tab->resource == res)
                             tab->name = rename_buf;
                     }
-                    renaming_id = -1;
+                    renaming_id = 0;
                 }
                 if (ImGui::IsItemDeactivated())
                 {
@@ -64,7 +64,7 @@ namespace
                         if (tab->resource == res)
                             tab->name = rename_buf;
                     }
-                    renaming_id = -1;
+                    renaming_id = 0;
                 }
             }
             else
@@ -105,7 +105,7 @@ namespace
             if (ImGui::Button("x", ImVec2(close_btn_w, 0.0f)))
             {
                 if (renaming_id == res->id)
-                    renaming_id = -1;
+                    renaming_id = 0;
 
                 auto to_delete = res;
                 DeleteResource(to_delete);
@@ -132,12 +132,9 @@ void RenderSidebar()
 
         if (ImGui::Button("+", ImVec2(button_width, button_width)))
         {
-            int new_id = g_NextResourceId++;
-            char default_name[32];
-            snprintf(default_name, sizeof(default_name), "HTTP %d", new_id);
             auto res = std::make_shared<HttpResource>();
-            res->id = new_id;
-            res->name = default_name;
+            res->id = UI::GenerateUID();
+            res->name = "HTTP Request";
             g_Resources.push_back(res);
             OpenOrFocusResource(res);
         }
