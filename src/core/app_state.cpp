@@ -18,7 +18,12 @@ uint64_t GenerateUID()
     return dist(rng);
 }
 
-AppState g_AppState;
+OPENREQUEST_CORE_API AppState g_AppState;
+
+AppState& GetAppState()
+{
+    return g_AppState;
+}
 
 AppState::AppState()
 {

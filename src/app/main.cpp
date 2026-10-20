@@ -16,7 +16,11 @@
 #include "cr.h"
 #else
 #include "cr.h"
-extern "C" CR_EXPORT int cr_main(struct cr_plugin *ctx, enum cr_op operation);
+#if defined(_WIN32)
+extern "C" __declspec(dllimport) int cr_main(struct cr_plugin *ctx, enum cr_op operation);
+#else
+extern "C" int cr_main(struct cr_plugin *ctx, enum cr_op operation);
+#endif
 #endif
 
 #include "app_state.h"

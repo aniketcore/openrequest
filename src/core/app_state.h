@@ -11,6 +11,16 @@
 #include "resource.h"
 #include "http_resource.h"
 
+#if defined(_WIN32)
+  #if defined(OPENREQUEST_CORE_BUILD)
+    #define OPENREQUEST_CORE_API __declspec(dllexport)
+  #else
+    #define OPENREQUEST_CORE_API __declspec(dllimport)
+  #endif
+#else
+  #define OPENREQUEST_CORE_API
+#endif
+
 #ifdef DELETE
 #undef DELETE
 #endif
@@ -123,8 +133,8 @@ struct AppState {
     bool FromYamlString(const std::string& yaml_str);
 };
 
-extern AppState g_AppState;
+OPENREQUEST_CORE_API extern AppState g_AppState;
 
-inline AppState& GetAppState() { return g_AppState; }
+OPENREQUEST_CORE_API AppState& GetAppState();
 
 } // namespace UI

@@ -102,10 +102,13 @@ target_include_directories(openrequest_core PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/${IMGUI_COLOR_TEXT_EDIT_DIR}
 )
 
+target_compile_definitions(openrequest_core PRIVATE
+  OPENREQUEST_CORE_BUILD
+)
+
 target_compile_definitions(openrequest_core PUBLIC
   NOMINMAX
   WIN32_LEAN_AND_MEAN
-  OPENREQUEST_CORE_BUILD
 )
 
 target_link_libraries(openrequest_core PUBLIC
@@ -152,10 +155,13 @@ target_include_directories(openrequest_ui PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/assets
 )
 
+target_compile_definitions(openrequest_ui PRIVATE
+  OPENREQUEST_UI_BUILD
+)
+
 target_compile_definitions(openrequest_ui PUBLIC
   NOMINMAX
   WIN32_LEAN_AND_MEAN
-  OPENREQUEST_UI_BUILD
   FONT_PATH=\"${CMAKE_CURRENT_SOURCE_DIR}/ext/imgui/misc/fonts/Roboto-Medium.ttf\"
   MONO_FONT_PATH=\"${CMAKE_CURRENT_SOURCE_DIR}/ext/imgui/misc/fonts/Cousine-Regular.ttf\"
   ASSETS_PATH=\"${CMAKE_CURRENT_SOURCE_DIR}/assets/\"
