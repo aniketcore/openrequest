@@ -1,0 +1,13 @@
+name: OpenRequest Collection
+version: '1.0'
+items:
+  - $kind: HTTP
+    id: 632380214166856
+    name: Tab 1
+    url: ''
+    method: GET
+    requestHeaders: []
+    body: ''
+open_tabs:
+  - 632380214166856
+active_tab: 632380214166856

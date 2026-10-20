@@ -12,6 +12,15 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Debug CACHE STRING "" FORCE)
 endif()
 
+# Hot-reloading option: default ON for Debug, OFF for Release builds
+if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR NOT CMAKE_BUILD_TYPE)
+  set(DEFAULT_HOT_RELOAD ON)
+else()
+  set(DEFAULT_HOT_RELOAD OFF)
+endif()
+
+option(OPENREQUEST_ENABLE_HOT_RELOAD "Enable UI hot-reloading (Debug mode only)" ${DEFAULT_HOT_RELOAD})
+
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -208,6 +217,13 @@ target_link_libraries(openrequest PRIVATE
   Freetype::Freetype
   ${CMAKE_DL_LIBS}
 )
+
+if(OPENREQUEST_ENABLE_HOT_RELOAD)
+  target_compile_definitions(openrequest PRIVATE OPENREQUEST_ENABLE_HOT_RELOAD=1)
+else()
+  target_compile_definitions(openrequest PRIVATE OPENREQUEST_ENABLE_HOT_RELOAD=0)
+  target_link_libraries(openrequest PRIVATE openrequest_ui)
+endif()
 
 if(WIN32)
   target_link_libraries(openrequest PRIVATE dwmapi)

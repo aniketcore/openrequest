@@ -3,6 +3,7 @@
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <unordered_map>
 
 #include <imgui.h>
 #include <imgui_stdlib.h>
@@ -28,50 +29,6 @@ namespace
         return ImGui::SplitterBehavior(bb, id, ImGuiAxis_Y, size1, size2, min_size1, min_size2, 3.0f, 0.0f);
     }
 
-    void SetupEditorContextMenu(TextEditor& editor)
-    {
-        editor.SetTextContextMenuCallback([&editor](const TextEditor::PopupData&) {
-            bool ro = editor.IsReadOnlyEnabled();
-            if (!ro && ImGui::MenuItem("Cut", "Ctrl+X", nullptr, editor.AnyCursorHasSelection()))
-            {
-                editor.Cut();
-            }
-            if (ImGui::MenuItem("Copy", "Ctrl+C", nullptr, editor.AnyCursorHasSelection()))
-            {
-                editor.Copy();
-            }
-            if (!ro && ImGui::MenuItem("Paste", "Ctrl+V", nullptr, ImGui::GetClipboardText() != nullptr))
-            {
-                editor.Paste();
-            }
-            if (ImGui::MenuItem("Select All", "Ctrl+A", nullptr, !editor.IsEmpty()))
-            {
-                editor.SelectAll();
-            }
-            ImGui::Separator();
-            if (!ro && ImGui::MenuItem("Format JSON"))
-            {
-                std::string formatted = glz::prettify_json(editor.GetText());
-                if (!formatted.empty())
-                {
-                    editor.SetText(formatted);
-                }
-            }
-            bool wrap = editor.IsWordWrapEnabled();
-            if (ImGui::MenuItem("Word Wrap", nullptr, &wrap))
-            {
-                editor.SetWordWrapEnabled(wrap);
-            }
-            if (ImGui::BeginMenu("Line Spacing"))
-            {
-                if (ImGui::MenuItem("1.0x", nullptr, editor.GetLineSpacing() == 1.0f)) { editor.SetLineSpacing(1.0f); }
-                if (ImGui::MenuItem("1.25x (Default)", nullptr, editor.GetLineSpacing() == 1.25f)) { editor.SetLineSpacing(1.25f); }
-                if (ImGui::MenuItem("1.5x", nullptr, editor.GetLineSpacing() == 1.5f)) { editor.SetLineSpacing(1.5f); }
-                ImGui::EndMenu();
-            }
-        });
-    }
-
     void ConfigureTextEditor(TextEditor& editor, bool readOnly, const TextEditor::Language* language = nullptr)
     {
         editor.SetPalette(TextEditor::GetDarkPalette());
@@ -80,23 +37,12 @@ namespace
         editor.SetAutoIndentEnabled(true);
         editor.SetReadOnlyEnabled(readOnly);
         editor.SetShowLineNumbersEnabled(true);
-        editor.SetShowWhitespacesEnabled(false);
-        editor.SetShowMatchingBrackets(true);
-        editor.SetCompletePairedGlyphs(true);
-        editor.SetShowCurrentLineHighlightEnabled(true);
         editor.SetLineFoldingEnabled(true);
-        editor.SetFindReplaceEnabled(true);
-        editor.SetShowScrollbarMiniMapEnabled(true);
-        editor.SetShowMiniMapEnabled(false);
-        editor.SetShowPanScrollIndicatorEnabled(false);
         editor.SetLineSpacing(1.25f);
-        editor.SetLineNumberLeftMargin(1);
-        editor.SetTextLeftMargin(1);
         if (language != nullptr)
         {
             editor.SetLanguage(language);
         }
-        SetupEditorContextMenu(editor);
     }
 
     ImVec4 GetMethodColor(HTTP::Method method)
@@ -104,119 +50,163 @@ namespace
         switch (method)
         {
             case HTTP::GET:    return ImVec4(0.18f, 0.80f, 0.44f, 1.0f); // Bright Green
-            case HTTP::POST:   return ImVec4(0.85f, 0.72f, 0.38f, 1.0f); // Warm Gold / Yellow (from screenshot: rgb(205, 181, 109))
+            case HTTP::POST:   return ImVec4(0.85f, 0.72f, 0.38f, 1.0f); // Warm Gold / Yellow
             case HTTP::PUT:    return ImVec4(0.28f, 0.62f, 0.95f, 1.0f); // Blue
             case HTTP::DELETE: return ImVec4(0.92f, 0.32f, 0.32f, 1.0f); // Red
             default:           return ImVec4(0.70f, 0.70f, 0.70f, 1.0f);
         }
     }
 
-    const char* GetMethodName(HTTP::Method method)
+    struct QueryParam {
+        std::string key;
+        std::string value;
+    };
+
+    std::vector<QueryParam> ParseQueryParams(const std::string& url)
     {
-        switch (method)
+        std::vector<QueryParam> params;
+        size_t qpos = url.find('?');
+        if (qpos == std::string::npos) return params;
+        std::string qstr = url.substr(qpos + 1);
+        std::istringstream iss(qstr);
+        std::string pair;
+        while (std::getline(iss, pair, '&'))
         {
-            case HTTP::GET:    return "GET";
-            case HTTP::POST:   return "POST";
-            case HTTP::PUT:    return "PUT";
-            case HTTP::DELETE: return "DELETE";
-            default:           return "GET";
+            if (pair.empty()) continue;
+            size_t eq = pair.find('=');
+            if (eq != std::string::npos)
+                params.push_back({pair.substr(0, eq), pair.substr(eq + 1)});
+            else
+                params.push_back({pair, ""});
+        }
+        return params;
+    }
+
+    std::string RebuildUrlWithParams(const std::string& url, const std::vector<QueryParam>& params)
+    {
+        size_t qpos = url.find('?');
+        std::string base = (qpos != std::string::npos) ? url.substr(0, qpos) : url;
+        if (params.empty()) return base;
+        std::string new_url = base + "?";
+        for (size_t i = 0; i < params.size(); ++i)
+        {
+            if (i > 0) new_url += "&";
+            new_url += params[i].key;
+            if (!params[i].value.empty())
+            {
+                new_url += "=";
+                new_url += params[i].value;
+            }
+        }
+        return new_url;
+    }
+
+    std::string Base64Encode(const std::string& in)
+    {
+        static const char lookup[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        std::string out;
+        int val = 0, valb = -6;
+        for (unsigned char c : in)
+        {
+            val = (val << 8) + c;
+            valb += 8;
+            while (valb >= 0)
+            {
+                out.push_back(lookup[(val >> valb) & 0x3F]);
+                valb -= 6;
+            }
+        }
+        if (valb > -6) out.push_back(lookup[((val << 8) >> (valb + 8)) & 0x3F]);
+        while (out.size() % 4) out.push_back('=');
+        return out;
+    }
+
+    void SetHeader(std::vector<std::pair<std::string, std::string>>& headers, const std::string& key, const std::string& val)
+    {
+        for (auto& h : headers)
+        {
+            if (h.first == key)
+            {
+                h.second = val;
+                return;
+            }
+        }
+        headers.push_back({key, val});
+    }
+
+    void RemoveHeader(std::vector<std::pair<std::string, std::string>>& headers, const std::string& key)
+    {
+        for (auto it = headers.begin(); it != headers.end(); ++it)
+        {
+            if (it->first == key)
+            {
+                headers.erase(it);
+                return;
+            }
         }
     }
 
+    struct ResourceSubtabState {
+        int authType = 0; // 0 = None, 1 = Bearer, 2 = Basic
+        std::string bearerToken;
+        std::string basicUser;
+        std::string basicPass;
+        std::string docs;
+        bool followRedirects = true;
+        bool verifySsl = true;
+        int timeoutMs = 30000;
+        bool defaultTabApplied = false;
+    };
+    static std::unordered_map<uint64_t, ResourceSubtabState> s_SubtabStates;
+
     void DrawRequestBar(HttpResource* http)
     {
-        const float bar_h = 34.0f;
-        const float send_btn_w = 96.0f;
-        const float spacing = 8.0f;
+        const float send_btn_w = 80.0f;
+        const float method_w = 90.0f;
+        const float spacing = ImGui::GetStyle().ItemSpacing.x;
         const float avail_w = ImGui::GetContentRegionAvail().x;
-        const float url_box_w = std::max(120.0f, avail_w - send_btn_w - spacing);
+        const float url_w = std::max(100.0f, avail_w - method_w - send_btn_w - (spacing * 2.0f));
 
-        ImDrawList* draw_list = ImGui::GetWindowDrawList();
-        ImVec2 start_pos = ImGui::GetCursorScreenPos();
-        ImVec2 box_max = ImVec2(start_pos.x + url_box_w, start_pos.y + bar_h);
+        // 1. Built-in Method Combo
+        const char* methods[] = { "GET", "POST", "PUT", "DELETE" };
+        int current_method = static_cast<int>(http->method);
 
-        // Reserve space in layout
-        ImGui::Dummy(ImVec2(avail_w, bar_h));
-
-        // 1. Draw outer background & subtle border for the unified URL input bar
-        ImU32 bg_col = ImGui::GetColorU32(ImVec4(0.12f, 0.12f, 0.13f, 1.0f));       // #1f1f21
-        ImU32 border_col = ImGui::GetColorU32(ImVec4(0.24f, 0.24f, 0.26f, 1.0f));   // #3e3e42
-        draw_list->AddRectFilled(start_pos, box_max, bg_col, 5.0f);
-        draw_list->AddRect(start_pos, box_max, border_col, 5.0f);
-
-        // 2. Method button inside the box
-        const char* current_method_name = GetMethodName(http->method);
-        ImVec4 method_col = GetMethodColor(http->method);
-
-        ImGui::SetCursorScreenPos(ImVec2(start_pos.x + 4.0f, start_pos.y + 2.0f));
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(1, 1, 1, 0.06f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(1, 1, 1, 0.12f));
-        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8.0f, (bar_h - 4.0f - ImGui::GetFontSize()) * 0.5f));
-
-        std::string method_btn_str = std::string(current_method_name) + "   v##method_btn";
-        ImGui::PushStyleColor(ImGuiCol_Text, method_col);
-        if (ImGui::Button(method_btn_str.c_str()))
+        ImGui::SetNextItemWidth(method_w);
+        ImGui::PushStyleColor(ImGuiCol_Text, GetMethodColor(http->method));
+        if (ImGui::BeginCombo("##method", methods[current_method]))
         {
-            ImGui::OpenPopup("##method_dropdown_popup");
-        }
-        ImGui::PopStyleColor(); // ImGuiCol_Text
-
-        float method_btn_w = ImGui::GetItemRectSize().x;
-
-        if (ImGui::BeginPopup("##method_dropdown_popup"))
-        {
-            HTTP::Method all_methods[] = { HTTP::GET, HTTP::POST, HTTP::PUT, HTTP::DELETE };
-            for (auto m : all_methods)
+            for (int n = 0; n < IM_ARRAYSIZE(methods); n++)
             {
-                ImVec4 col = GetMethodColor(m);
-                ImGui::PushStyleColor(ImGuiCol_Text, col);
-                if (ImGui::MenuItem(GetMethodName(m), nullptr, http->method == m))
+                bool is_selected = (current_method == n);
+                ImGui::PushStyleColor(ImGuiCol_Text, GetMethodColor(static_cast<HTTP::Method>(n)));
+                if (ImGui::Selectable(methods[n], is_selected))
                 {
-                    http->method = m;
+                    http->method = static_cast<HTTP::Method>(n);
                 }
+                if (is_selected)
+                    ImGui::SetItemDefaultFocus();
                 ImGui::PopStyleColor();
             }
-            ImGui::EndPopup();
+            ImGui::EndCombo();
         }
-        ImGui::PopStyleVar(); // FramePadding
-        ImGui::PopStyleColor(3); // Button colors
+        ImGui::PopStyleColor();
 
-        // 3. Vertical divider line
-        float divider_x = start_pos.x + 4.0f + method_btn_w + 4.0f;
-        draw_list->AddLine(
-            ImVec2(divider_x, start_pos.y + 6.0f),
-            ImVec2(divider_x, start_pos.y + bar_h - 6.0f),
-            border_col, 1.0f);
-
-        // 4. URL text input
-        float url_input_x = divider_x + 6.0f;
-        float url_input_w = std::max(20.0f, box_max.x - url_input_x - 6.0f);
-        ImGui::SetCursorScreenPos(ImVec2(url_input_x, start_pos.y + 2.0f));
-        ImGui::SetNextItemWidth(url_input_w);
-
-        ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0, 0, 0, 0));
-        ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0, 0, 0, 0));
-        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(4.0f, (bar_h - 4.0f - ImGui::GetFontSize()) * 0.5f));
+        // 2. Built-in URL Input
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(url_w);
         bool enter_pressed = ImGui::InputTextWithHint("##url_input", "Enter URL or paste text", &http->url, ImGuiInputTextFlags_EnterReturnsTrue);
-        ImGui::PopStyleVar();
-        ImGui::PopStyleColor(2);
 
-        // 5. Send / Cancel button on the right
+        // 3. Built-in Send / Cancel Button
+        ImGui::SameLine();
         bool is_running = http->IsRunning();
-        ImVec2 btn_pos = ImVec2(start_pos.x + url_box_w + spacing, start_pos.y);
-        ImGui::SetCursorScreenPos(btn_pos);
-
-        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 5.0f);
-        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8.0f, (bar_h - ImGui::GetFontSize()) * 0.5f));
-
         bool send_clicked = false;
+
         if (is_running)
         {
             ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.82f, 0.22f, 0.22f, 1.0f));
             ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.92f, 0.30f, 0.30f, 1.0f));
             ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.72f, 0.18f, 0.18f, 1.0f));
-            if (ImGui::Button("Cancel##send_btn", ImVec2(send_btn_w, bar_h)))
+            if (ImGui::Button("Cancel##send_btn", ImVec2(send_btn_w, 0.0f)))
             {
                 http->CancelRequest();
             }
@@ -224,29 +214,15 @@ namespace
         }
         else
         {
-            // Blue Send button matching screenshot
             ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.18f, 0.40f, 0.80f, 1.0f));
             ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.24f, 0.48f, 0.88f, 1.0f));
             ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.14f, 0.35f, 0.72f, 1.0f));
-            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
-
-            if (ImGui::Button("Send   v##send_btn", ImVec2(send_btn_w, bar_h)) || enter_pressed)
+            if (ImGui::Button("Send##send_btn", ImVec2(send_btn_w, 0.0f)) || enter_pressed)
             {
                 send_clicked = true;
             }
-            // Draw subtle split-button divider inside Send button
-            draw_list->AddLine(
-                ImVec2(btn_pos.x + send_btn_w - 24.0f, btn_pos.y + 6.0f),
-                ImVec2(btn_pos.x + send_btn_w - 24.0f, btn_pos.y + bar_h - 6.0f),
-                ImGui::GetColorU32(ImVec4(0.12f, 0.30f, 0.65f, 0.7f)), 1.0f);
-
-            ImGui::PopStyleColor(4);
+            ImGui::PopStyleColor(3);
         }
-
-        ImGui::PopStyleVar(2); // FrameRounding, FramePadding
-
-        // Restore cursor position for items below the bar
-        ImGui::SetCursorScreenPos(ImVec2(start_pos.x, start_pos.y + bar_h + spacing));
 
         if (send_clicked && !is_running)
         {
@@ -333,63 +309,334 @@ namespace UI
             ImGui::TextColored(ImVec4(0.85f, 0.85f, 0.4f, 1.0f), "Sending request...");
         }
 
-        ImGui::Spacing();
-        ImGui::Text("Headers");
-        ImGui::SameLine();
-        if (ImGui::Button("+##add_header"))
-        {
-            http->requestHeaders.push_back({"", ""});
-        }
-        for (size_t i = 0; i < http->requestHeaders.size(); ++i)
-        {
-            ImGui::PushID(static_cast<int>(i));
-            ImGui::SetNextItemWidth(150.0f);
-            ImGui::InputText("##key", &http->requestHeaders[i].first);
-            ImGui::SameLine();
-            ImGui::SetNextItemWidth(250.0f);
-            ImGui::InputText("##value", &http->requestHeaders[i].second);
-            ImGui::SameLine();
-            if (ImGui::Button("X"))
-            {
-                http->requestHeaders.erase(http->requestHeaders.begin() + i);
-                --i;
-            }
-            ImGui::PopID();
-        }
-        ImGui::Spacing();
-        ImGui::Text("Request Body");
-        ImGui::SameLine();
-        if (ImGui::SmallButton("Format JSON##req_fmt"))
-        {
-            std::string text = http->requestEditor->GetText();
-            std::string formatted = glz::prettify_json(text);
-            if (!formatted.empty())
-            {
-                http->requestEditor->SetText(formatted);
-                http->req.body = formatted;
-                http->body = formatted;
-                http->requestEditorVersion = http->requestEditor->GetUndoIndex();
-            }
-        }
-        ImGui::SameLine();
-        bool reqWrap = http->requestEditor->IsWordWrapEnabled();
-        if (ImGui::Checkbox("Wrap##req_wrap", &reqWrap))
-        {
-            http->requestEditor->SetWordWrapEnabled(reqWrap);
-        }
-        ImGui::Separator();
+        ImGui::Dummy(ImVec2(0.0f, 4.0f));
 
-        ImFont* editorFont = UI::GPU::g_MonoFont ? UI::GPU::g_MonoFont : ImGui::GetFont();
-        ImGui::PushFont(editorFont);
-        http->requestEditor->Render("##request_body_editor", ImVec2(0.0f, 160.0f), ImGuiChildFlags_Borders);
-        ImGui::PopFont();
+        auto params = ParseQueryParams(http->url);
+        auto& subtabState = s_SubtabStates[http->id];
 
-        if (http->requestEditor->GetUndoIndex() != http->requestEditorVersion)
+        // Modern, clean tab strip matching API clients (Postman/Bruno)
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(12.0f, 7.0f));
+        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4.0f, 0.0f));
+        ImGui::PushStyleVar(ImGuiStyleVar_TabRounding, 4.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_TabBorderSize, 1.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_TabBarBorderSize, 1.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_TabBarOverlineSize, 0.0f);
+
+        ImGui::PushStyleColor(ImGuiCol_Tab, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+        ImGui::PushStyleColor(ImGuiCol_TabHovered, ImVec4(1.0f, 1.0f, 1.0f, 0.08f));
+        ImGui::PushStyleColor(ImGuiCol_TabActive, ImVec4(1.0f, 1.0f, 1.0f, 0.12f));
+        ImGui::PushStyleColor(ImGuiCol_TabUnfocused, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+        ImGui::PushStyleColor(ImGuiCol_TabUnfocusedActive, ImVec4(1.0f, 1.0f, 1.0f, 0.10f));
+
+        if (ImGui::BeginTabBar("##request_subtabs", ImGuiTabBarFlags_FittingPolicyScroll | ImGuiTabBarFlags_NoTooltip))
         {
-            http->requestEditorVersion = http->requestEditor->GetUndoIndex();
-            http->req.body = http->requestEditor->GetText();
-            http->body = http->req.body;
+            // 1. Docs
+            const char* docs_label = subtabState.docs.empty() ? "Docs###tab_docs" : "Docs *###tab_docs";
+            if (ImGui::BeginTabItem(docs_label))
+            {
+                ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8.0f, 8.0f));
+                ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8.0f, 6.0f));
+
+                ImGui::Dummy(ImVec2(0.0f, 6.0f));
+                ImGui::TextDisabled("Request Documentation & Notes");
+                ImGui::Dummy(ImVec2(0.0f, 2.0f));
+                ImGui::InputTextMultiline("##doc_notes", &subtabState.docs, ImVec2(-FLT_MIN, -FLT_MIN));
+
+                ImGui::PopStyleVar(2);
+                ImGui::EndTabItem();
+            }
+
+            // 2. Params
+            char params_label[64];
+            if (!params.empty())
+                snprintf(params_label, sizeof(params_label), "Params %zu###tab_params", params.size());
+            else
+                snprintf(params_label, sizeof(params_label), "Params###tab_params");
+
+            if (ImGui::BeginTabItem(params_label))
+            {
+                ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8.0f, 8.0f));
+                ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8.0f, 6.0f));
+
+                ImGui::Dummy(ImVec2(0.0f, 6.0f));
+                if (ImGui::Button("+ Add Param##add_param"))
+                {
+                    params.push_back({"", ""});
+                    http->url = RebuildUrlWithParams(http->url, params);
+                }
+
+                ImGui::Dummy(ImVec2(0.0f, 2.0f));
+
+                if (!params.empty())
+                {
+                    if (ImGui::BeginTable("##params_table", 3, ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_PadOuterX))
+                    {
+                        ImGui::TableSetupColumn("Key", ImGuiTableColumnFlags_WidthStretch, 0.40f);
+                        ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch, 0.52f);
+                        ImGui::TableSetupColumn("##action", ImGuiTableColumnFlags_WidthFixed, 32.0f);
+                        ImGui::TableHeadersRow();
+
+                        bool modified = false;
+                        for (size_t i = 0; i < params.size(); ++i)
+                        {
+                            ImGui::PushID(static_cast<int>(i));
+                            ImGui::TableNextRow();
+
+                            ImGui::TableSetColumnIndex(0);
+                            ImGui::SetNextItemWidth(-FLT_MIN);
+                            if (ImGui::InputTextWithHint("##param_key", "Parameter name", &params[i].key))
+                                modified = true;
+
+                            ImGui::TableSetColumnIndex(1);
+                            ImGui::SetNextItemWidth(-FLT_MIN);
+                            if (ImGui::InputTextWithHint("##param_val", "Value", &params[i].value))
+                                modified = true;
+
+                            ImGui::TableSetColumnIndex(2);
+                            if (ImGui::Button("X##del", ImVec2(28.0f, 0.0f)))
+                            {
+                                params.erase(params.begin() + i);
+                                --i;
+                                modified = true;
+                            }
+                            ImGui::PopID();
+                        }
+                        ImGui::EndTable();
+
+                        if (modified)
+                        {
+                            http->url = RebuildUrlWithParams(http->url, params);
+                        }
+                    }
+                }
+                else
+                {
+                    ImGui::TextDisabled("No query parameters. Click '+ Add Param' or add '?key=value' in URL.");
+                }
+
+                ImGui::PopStyleVar(2);
+                ImGui::EndTabItem();
+            }
+
+            // 3. Authorization
+            const char* auth_label = (subtabState.authType == 0) ? "Authorization###tab_auth" : "Authorization *###tab_auth";
+            if (ImGui::BeginTabItem(auth_label))
+            {
+                ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8.0f, 8.0f));
+                ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8.0f, 6.0f));
+
+                ImGui::Dummy(ImVec2(0.0f, 6.0f));
+                ImGui::Text("Auth Type");
+                ImGui::SameLine();
+                static const char* auth_types[] = { "No Auth", "Bearer Token", "Basic Auth" };
+                ImGui::SetNextItemWidth(180.0f);
+                if (ImGui::Combo("##auth_type", &subtabState.authType, auth_types, IM_ARRAYSIZE(auth_types)))
+                {
+                    if (subtabState.authType == 0)
+                        RemoveHeader(http->requestHeaders, "Authorization");
+                    else if (subtabState.authType == 1 && !subtabState.bearerToken.empty())
+                        SetHeader(http->requestHeaders, "Authorization", "Bearer " + subtabState.bearerToken);
+                    else if (subtabState.authType == 2 && (!subtabState.basicUser.empty() || !subtabState.basicPass.empty()))
+                        SetHeader(http->requestHeaders, "Authorization", "Basic " + Base64Encode(subtabState.basicUser + ":" + subtabState.basicPass));
+                }
+
+                ImGui::Dummy(ImVec2(0.0f, 4.0f));
+                ImGui::Separator();
+                ImGui::Dummy(ImVec2(0.0f, 4.0f));
+
+                if (subtabState.authType == 1) // Bearer
+                {
+                    ImGui::Text("Token");
+                    ImGui::SetNextItemWidth(380.0f);
+                    if (ImGui::InputTextWithHint("##bearer_token", "Enter bearer token...", &subtabState.bearerToken))
+                    {
+                        if (!subtabState.bearerToken.empty())
+                            SetHeader(http->requestHeaders, "Authorization", "Bearer " + subtabState.bearerToken);
+                        else
+                            RemoveHeader(http->requestHeaders, "Authorization");
+                    }
+                }
+                else if (subtabState.authType == 2) // Basic
+                {
+                    ImGui::Text("Username");
+                    ImGui::SetNextItemWidth(320.0f);
+                    if (ImGui::InputTextWithHint("##basic_user", "Username", &subtabState.basicUser))
+                    {
+                        SetHeader(http->requestHeaders, "Authorization", "Basic " + Base64Encode(subtabState.basicUser + ":" + subtabState.basicPass));
+                    }
+                    ImGui::Text("Password");
+                    ImGui::SetNextItemWidth(320.0f);
+                    if (ImGui::InputTextWithHint("##basic_pass", "Password", &subtabState.basicPass, ImGuiInputTextFlags_Password))
+                    {
+                        SetHeader(http->requestHeaders, "Authorization", "Basic " + Base64Encode(subtabState.basicUser + ":" + subtabState.basicPass));
+                    }
+                }
+                else
+                {
+                    ImGui::TextDisabled("This request does not use any authorization.");
+                }
+
+                ImGui::PopStyleVar(2);
+                ImGui::EndTabItem();
+            }
+
+            // 4. Headers
+            char headers_label[64];
+            if (!http->requestHeaders.empty())
+                snprintf(headers_label, sizeof(headers_label), "Headers %zu###tab_headers", http->requestHeaders.size());
+            else
+                snprintf(headers_label, sizeof(headers_label), "Headers###tab_headers");
+
+            if (ImGui::BeginTabItem(headers_label))
+            {
+                ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8.0f, 8.0f));
+                ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8.0f, 6.0f));
+
+                ImGui::Dummy(ImVec2(0.0f, 6.0f));
+                if (ImGui::Button("+ Add Header##add_header"))
+                {
+                    http->requestHeaders.push_back({"", ""});
+                }
+
+                ImGui::Dummy(ImVec2(0.0f, 2.0f));
+
+                if (!http->requestHeaders.empty())
+                {
+                    if (ImGui::BeginTable("##headers_table", 3, ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_PadOuterX))
+                    {
+                        ImGui::TableSetupColumn("Key", ImGuiTableColumnFlags_WidthStretch, 0.40f);
+                        ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch, 0.52f);
+                        ImGui::TableSetupColumn("##action", ImGuiTableColumnFlags_WidthFixed, 32.0f);
+                        ImGui::TableHeadersRow();
+
+                        for (size_t i = 0; i < http->requestHeaders.size(); ++i)
+                        {
+                            ImGui::PushID(static_cast<int>(i));
+                            ImGui::TableNextRow();
+
+                            ImGui::TableSetColumnIndex(0);
+                            ImGui::SetNextItemWidth(-FLT_MIN);
+                            ImGui::InputTextWithHint("##key", "Header name", &http->requestHeaders[i].first);
+
+                            ImGui::TableSetColumnIndex(1);
+                            ImGui::SetNextItemWidth(-FLT_MIN);
+                            ImGui::InputTextWithHint("##value", "Value", &http->requestHeaders[i].second);
+
+                            ImGui::TableSetColumnIndex(2);
+                            if (ImGui::Button("X##del", ImVec2(28.0f, 0.0f)))
+                            {
+                                http->requestHeaders.erase(http->requestHeaders.begin() + i);
+                                --i;
+                            }
+                            ImGui::PopID();
+                        }
+                        ImGui::EndTable();
+                    }
+                }
+                else
+                {
+                    ImGui::TextDisabled("No headers configured. Click '+ Add Header' to add one.");
+                }
+
+                ImGui::PopStyleVar(2);
+                ImGui::EndTabItem();
+            }
+
+            // 5. Body
+            const char* body_label = !http->body.empty() ? "Body *###tab_body" : "Body###tab_body";
+            ImGuiTabItemFlags body_flags = 0;
+            if (!subtabState.defaultTabApplied)
+            {
+                subtabState.defaultTabApplied = true;
+                if (http->method == HTTP::POST || http->method == HTTP::PUT)
+                {
+                    body_flags |= ImGuiTabItemFlags_SetSelected;
+                }
+            }
+
+            if (ImGui::BeginTabItem(body_label, nullptr, body_flags))
+            {
+                ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8.0f, 8.0f));
+                ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8.0f, 6.0f));
+
+                ImGui::Dummy(ImVec2(0.0f, 6.0f));
+                if (ImGui::Button("Format JSON##req_fmt"))
+                {
+                    std::string text = http->requestEditor->GetText();
+                    std::string formatted = glz::prettify_json(text);
+                    if (!formatted.empty())
+                    {
+                        http->requestEditor->SetText(formatted);
+                        http->req.body = formatted;
+                        http->body = formatted;
+                        http->requestEditorVersion = http->requestEditor->GetUndoIndex();
+                    }
+                }
+                ImGui::SameLine();
+                bool reqWrap = http->requestEditor->IsWordWrapEnabled();
+                if (ImGui::Checkbox("Wrap Lines##req_wrap", &reqWrap))
+                {
+                    http->requestEditor->SetWordWrapEnabled(reqWrap);
+                }
+
+                ImGui::Dummy(ImVec2(0.0f, 4.0f));
+
+                ImFont* editorFont = UI::GPU::g_MonoFont ? UI::GPU::g_MonoFont : ImGui::GetFont();
+                ImGui::PushFont(editorFont);
+                http->requestEditor->Render("##request_body_editor", ImVec2(0.0f, -FLT_MIN), ImGuiChildFlags_Borders);
+                ImGui::PopFont();
+
+                if (http->requestEditor->GetUndoIndex() != http->requestEditorVersion)
+                {
+                    http->requestEditorVersion = http->requestEditor->GetUndoIndex();
+                    http->req.body = http->requestEditor->GetText();
+                    http->body = http->req.body;
+                }
+
+                ImGui::PopStyleVar(2);
+                ImGui::EndTabItem();
+            }
+
+            // 6. Scripts
+            if (ImGui::BeginTabItem("Scripts###tab_scripts"))
+            {
+                ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8.0f, 8.0f));
+                ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8.0f, 6.0f));
+
+                ImGui::Dummy(ImVec2(0.0f, 6.0f));
+                ImGui::TextDisabled("Pre-request & Test Scripts");
+                ImGui::Dummy(ImVec2(0.0f, 2.0f));
+                ImGui::TextWrapped("Write automated test assertions and pre-request scripts here (coming soon).");
+
+                ImGui::PopStyleVar(2);
+                ImGui::EndTabItem();
+            }
+
+            // 7. Settings
+            if (ImGui::BeginTabItem("Settings###tab_settings"))
+            {
+                ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8.0f, 10.0f));
+                ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8.0f, 6.0f));
+
+                ImGui::Dummy(ImVec2(0.0f, 6.0f));
+                ImGui::Checkbox("Follow Redirects", &subtabState.followRedirects);
+                ImGui::Checkbox("Verify SSL Certificate", &subtabState.verifySsl);
+                ImGui::Dummy(ImVec2(0.0f, 4.0f));
+                ImGui::Text("Request Timeout");
+                ImGui::SetNextItemWidth(160.0f);
+                ImGui::InputInt("##timeout_ms", &subtabState.timeoutMs, 1000, 5000);
+                ImGui::SameLine();
+                ImGui::TextDisabled("(ms)");
+
+                ImGui::PopStyleVar(2);
+                ImGui::EndTabItem();
+            }
+
+            ImGui::EndTabBar();
         }
+
+        ImGui::PopStyleColor(5);
+        ImGui::PopStyleVar(6);
         ImGui::PopStyleVar();
         ImGui::EndChild();
 
@@ -414,14 +661,7 @@ namespace UI
                 ImGui::TextColored(ImVec4(0.9f, 0.8f, 0.3f, 1.0f), "[%d]", resp.response_code);
 
             ImGui::SameLine();
-            float btn_group_width = 330.0f;
-            if (ImGui::GetContentRegionAvail().x > btn_group_width)
-            {
-                ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x - btn_group_width);
-            }
-
-            ImGui::BeginGroup();
-            if (ImGui::Button("Format JSON##resp_fmt"))
+            if (ImGui::SmallButton("Format JSON##resp_fmt"))
             {
                 std::string formatted = glz::prettify_json(http->responseEditor->GetText());
                 if (!formatted.empty())
@@ -430,12 +670,12 @@ namespace UI
                 }
             }
             ImGui::SameLine();
-            if (ImGui::Button("Copy"))
+            if (ImGui::SmallButton("Copy"))
             {
                 http->responseEditor->Copy();
             }
             ImGui::SameLine();
-            if (ImGui::Button("Clear"))
+            if (ImGui::SmallButton("Clear"))
             {
                 http->responseEditor->ClearText();
                 if (resp.body.has_value()) resp.body.reset();
@@ -449,7 +689,6 @@ namespace UI
             }
             ImGui::SameLine();
             ImGui::Checkbox("Read-only", &responseReadOnly);
-            ImGui::EndGroup();
         }
 
         ImGui::Separator();

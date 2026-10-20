@@ -2,9 +2,22 @@
 #include <filesystem>
 #include <SDL3/SDL.h>
 
+#ifndef OPENREQUEST_ENABLE_HOT_RELOAD
+  #ifndef NDEBUG
+    #define OPENREQUEST_ENABLE_HOT_RELOAD 1
+  #else
+    #define OPENREQUEST_ENABLE_HOT_RELOAD 0
+  #endif
+#endif
+
+#if OPENREQUEST_ENABLE_HOT_RELOAD
 #define CR_HOST CR_UNSAFE
 #define CR_DEBUG
 #include "cr.h"
+#else
+#include "cr.h"
+extern "C" CR_EXPORT int cr_main(struct cr_plugin *ctx, enum cr_op operation);
+#endif
 
 #include "app_state.h"
 #include "imgui_helpers.h"
@@ -42,6 +55,10 @@ int main(int argc, char* argv[])
     host_data.state = &UI::g_AppState;
     host_data.main_scale = main_scale;
 
+    cr_plugin ctx = {};
+    ctx.userdata = &host_data;
+
+#if OPENREQUEST_ENABLE_HOT_RELOAD
 #if defined(_WIN32)
     const std::string lib_name = "openrequest_ui.dll";
 #elif defined(__APPLE__)
@@ -51,15 +68,15 @@ int main(int argc, char* argv[])
 #endif
 
     std::filesystem::path plugin_path = GetExecutableDir() / lib_name;
-
-    cr_plugin ctx = {};
-    ctx.userdata = &host_data;
     if (!cr_plugin_open(ctx, plugin_path.string().c_str()))
     {
         std::cerr << "[CR] Failed to open plugin from " << plugin_path << std::endl;
         UI::GPU::Cleanup(window);
         return 1;
     }
+#else
+    cr_main(&ctx, CR_LOAD);
+#endif
 
     HTTP::Init();
 
@@ -91,6 +108,7 @@ int main(int argc, char* argv[])
         ImGui_ImplSDL3_NewFrame();
         ImGui::NewFrame();
 
+#if OPENREQUEST_ENABLE_HOT_RELOAD
         // cr_plugin_update checks timestamps, copies/reloads, and calls cr_main with CR_STEP
         int rc = cr_plugin_update(ctx);
         if (rc < 0)
@@ -107,13 +125,20 @@ int main(int argc, char* argv[])
             static int last_rc = 0;
             last_rc = 0;
         }
+#else
+        cr_main(&ctx, CR_STEP);
+#endif
 
         // End frame and present via SDL_GPU
         ImGui::Render();
         UI::GPU::RenderFrame(window, ImGui::GetDrawData(), clear_color);
     }
 
+#if OPENREQUEST_ENABLE_HOT_RELOAD
     cr_plugin_close(ctx);
+#else
+    cr_main(&ctx, CR_CLOSE);
+#endif
     HTTP::Free();
     UI::GPU::Cleanup(window);
     return 0;

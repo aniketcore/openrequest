@@ -239,13 +239,6 @@ namespace UI
         ImGui::EndMainMenuBar();
     }
 
-    // Global active tab state references bound directly to g_AppState
-    std::vector<std::unique_ptr<Tab>>& g_Tabs = g_AppState.tabs;
-    int& g_ActiveTabId = g_AppState.active_tab_id;
-    int& g_NextTabId = g_AppState.next_tab_id;
-    int& g_SelectedTopTab = g_AppState.selected_top_tab;
-    ImGuiID& g_MainDockId = g_AppState.main_dock_id;
-
     void FocusTab(int tab_id)
     {
         g_AppState.FocusTab(tab_id);
@@ -305,7 +298,7 @@ namespace UI
                     g_AppState.main_dock_id = ImGui::GetWindowDockID();
                 }
 
-                if (ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows))
+                if (ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows) || ImGui::IsWindowAppearing())
                 {
                     g_AppState.active_tab_id = tab->id;
                 }

@@ -24,6 +24,18 @@ CR_EXPORT int cr_main(struct cr_plugin *ctx, enum cr_op operation)
             UI::GPU::g_GpuDevice = data->gpu_device;
             UI::GPU::g_MonoFont = data->mono_font;
             UI::RegisterHttpResourceDrawer(UI::DrawHttpResource);
+            if (data->state)
+            {
+                if (data->state->active_tab_id != -1)
+                {
+                    data->state->tab_to_focus = data->state->active_tab_id;
+                }
+                else if (!data->state->tabs.empty())
+                {
+                    data->state->active_tab_id = data->state->tabs.front()->id;
+                    data->state->tab_to_focus = data->state->active_tab_id;
+                }
+            }
             return 0;
 
         case CR_STEP:
