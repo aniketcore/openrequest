@@ -22,6 +22,7 @@ public:
     std::unique_ptr<TextEditor> responseEditor;
     std::string lastResponseText;
     bool requestEditorInitialized = false;
+    size_t requestEditorVersion = 0;
 
     std::vector<std::pair<std::string, std::string>> requestHeaders;
 

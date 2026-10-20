@@ -10,6 +10,7 @@
 
 #include "imgui_helpers.h"
 #include "TextEditor.h"
+#include <glaze/json/prettify.hpp>
 
 namespace
 {
@@ -27,8 +28,53 @@ namespace
         return ImGui::SplitterBehavior(bb, id, ImGuiAxis_Y, size1, size2, min_size1, min_size2, 3.0f, 0.0f);
     }
 
+    void SetupEditorContextMenu(TextEditor& editor)
+    {
+        editor.SetTextContextMenuCallback([&editor](const TextEditor::PopupData&) {
+            bool ro = editor.IsReadOnlyEnabled();
+            if (!ro && ImGui::MenuItem("Cut", "Ctrl+X", nullptr, editor.AnyCursorHasSelection()))
+            {
+                editor.Cut();
+            }
+            if (ImGui::MenuItem("Copy", "Ctrl+C", nullptr, editor.AnyCursorHasSelection()))
+            {
+                editor.Copy();
+            }
+            if (!ro && ImGui::MenuItem("Paste", "Ctrl+V", nullptr, ImGui::GetClipboardText() != nullptr))
+            {
+                editor.Paste();
+            }
+            if (ImGui::MenuItem("Select All", "Ctrl+A", nullptr, !editor.IsEmpty()))
+            {
+                editor.SelectAll();
+            }
+            ImGui::Separator();
+            if (!ro && ImGui::MenuItem("Format JSON"))
+            {
+                std::string formatted = glz::prettify_json(editor.GetText());
+                if (!formatted.empty())
+                {
+                    editor.SetText(formatted);
+                }
+            }
+            bool wrap = editor.IsWordWrapEnabled();
+            if (ImGui::MenuItem("Word Wrap", nullptr, &wrap))
+            {
+                editor.SetWordWrapEnabled(wrap);
+            }
+            if (ImGui::BeginMenu("Line Spacing"))
+            {
+                if (ImGui::MenuItem("1.0x", nullptr, editor.GetLineSpacing() == 1.0f)) { editor.SetLineSpacing(1.0f); }
+                if (ImGui::MenuItem("1.25x (Default)", nullptr, editor.GetLineSpacing() == 1.25f)) { editor.SetLineSpacing(1.25f); }
+                if (ImGui::MenuItem("1.5x", nullptr, editor.GetLineSpacing() == 1.5f)) { editor.SetLineSpacing(1.5f); }
+                ImGui::EndMenu();
+            }
+        });
+    }
+
     void ConfigureTextEditor(TextEditor& editor, bool readOnly, const TextEditor::Language* language = nullptr)
     {
+        editor.SetPalette(TextEditor::GetDarkPalette());
         editor.SetTabSize(2);
         editor.SetInsertSpacesOnTabs(true);
         editor.SetAutoIndentEnabled(true);
@@ -37,11 +83,20 @@ namespace
         editor.SetShowWhitespacesEnabled(false);
         editor.SetShowMatchingBrackets(true);
         editor.SetCompletePairedGlyphs(true);
-        editor.SetShowPanScrollIndicatorEnabled(true);
+        editor.SetShowCurrentLineHighlightEnabled(true);
+        editor.SetLineFoldingEnabled(true);
+        editor.SetFindReplaceEnabled(true);
+        editor.SetShowScrollbarMiniMapEnabled(true);
+        editor.SetShowMiniMapEnabled(false);
+        editor.SetShowPanScrollIndicatorEnabled(false);
+        editor.SetLineSpacing(1.25f);
+        editor.SetLineNumberLeftMargin(1);
+        editor.SetTextLeftMargin(1);
         if (language != nullptr)
         {
             editor.SetLanguage(language);
         }
+        SetupEditorContextMenu(editor);
     }
 }
 
@@ -69,6 +124,7 @@ namespace UI
         {
             http->requestEditor->SetText(http->body.empty() ? http->req.body : http->body);
             http->requestEditorInitialized = true;
+            http->requestEditorVersion = http->requestEditor->GetUndoIndex();
         }
 
         if (http->req.gotresponse && http->req.getresponse().body.has_value())
@@ -76,6 +132,9 @@ namespace UI
             const auto& body = http->req.getresponse().body.value();
             if (body != http->lastResponseText)
             {
+                auto firstNonWs = body.find_first_not_of(" \t\r\n");
+                bool isJson = (firstNonWs != std::string::npos && (body[firstNonWs] == '{' || body[firstNonWs] == '['));
+                http->responseEditor->SetLanguage(isJson ? TextEditor::Language::Json() : nullptr);
                 http->responseEditor->SetText(body);
                 http->lastResponseText = body;
             }
@@ -142,15 +201,38 @@ namespace UI
         }
         ImGui::Spacing();
         ImGui::Text("Request Body");
+        ImGui::SameLine();
+        if (ImGui::SmallButton("Format JSON##req_fmt"))
+        {
+            std::string text = http->requestEditor->GetText();
+            std::string formatted = glz::prettify_json(text);
+            if (!formatted.empty())
+            {
+                http->requestEditor->SetText(formatted);
+                http->req.body = formatted;
+                http->body = formatted;
+                http->requestEditorVersion = http->requestEditor->GetUndoIndex();
+            }
+        }
+        ImGui::SameLine();
+        bool reqWrap = http->requestEditor->IsWordWrapEnabled();
+        if (ImGui::Checkbox("Wrap##req_wrap", &reqWrap))
+        {
+            http->requestEditor->SetWordWrapEnabled(reqWrap);
+        }
         ImGui::Separator();
 
         ImFont* editorFont = UI::GPU::g_MonoFont ? UI::GPU::g_MonoFont : ImGui::GetFont();
         ImGui::PushFont(editorFont);
-        http->requestEditor->Render("##request_body_editor", ImVec2(-1.0f, 160.0f), ImGuiChildFlags_Borders);
+        http->requestEditor->Render("##request_body_editor", ImVec2(0.0f, 160.0f), ImGuiChildFlags_Borders);
         ImGui::PopFont();
 
-        http->req.body = http->requestEditor->GetText();
-        http->body = http->req.body;
+        if (http->requestEditor->GetUndoIndex() != http->requestEditorVersion)
+        {
+            http->requestEditorVersion = http->requestEditor->GetUndoIndex();
+            http->req.body = http->requestEditor->GetText();
+            http->body = http->req.body;
+        }
         ImGui::Spacing();
 
         bool is_running = http->IsRunning();
@@ -172,6 +254,12 @@ namespace UI
         {
             if (ImGui::Button("Send Request##send_btn"))
             {
+                if (http->requestEditor)
+                {
+                    http->body = http->requestEditor->GetText();
+                    http->req.body = http->body;
+                    http->requestEditorVersion = http->requestEditor->GetUndoIndex();
+                }
                 http->SendRequest();
             }
         }
@@ -199,13 +287,22 @@ namespace UI
                 ImGui::TextColored(ImVec4(0.9f, 0.8f, 0.3f, 1.0f), "[%d]", resp.response_code);
 
             ImGui::SameLine();
-            float btn_group_width = 230.0f;
+            float btn_group_width = 330.0f;
             if (ImGui::GetContentRegionAvail().x > btn_group_width)
             {
                 ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x - btn_group_width);
             }
 
             ImGui::BeginGroup();
+            if (ImGui::Button("Format JSON##resp_fmt"))
+            {
+                std::string formatted = glz::prettify_json(http->responseEditor->GetText());
+                if (!formatted.empty())
+                {
+                    http->responseEditor->SetText(formatted);
+                }
+            }
+            ImGui::SameLine();
             if (ImGui::Button("Copy"))
             {
                 http->responseEditor->Copy();
@@ -216,6 +313,12 @@ namespace UI
                 http->responseEditor->ClearText();
                 if (resp.body.has_value()) resp.body.reset();
                 http->lastResponseText.clear();
+            }
+            ImGui::SameLine();
+            bool respWrap = http->responseEditor->IsWordWrapEnabled();
+            if (ImGui::Checkbox("Wrap##resp_wrap", &respWrap))
+            {
+                http->responseEditor->SetWordWrapEnabled(respWrap);
             }
             ImGui::SameLine();
             ImGui::Checkbox("Read-only", &responseReadOnly);
