@@ -83,6 +83,13 @@ struct AppState {
     ImGuiID main_dock_id = 0;
     int selected_top_tab = 0;
     bool show_sidebar = true;
+    // Window chrome & drag area metrics (for borderless window hit testing)
+    float title_bar_height = 35.0f;
+    float drag_min_x = 0.0f;
+    float drag_max_x = 0.0f;
+    float max_btn_min_x = 0.0f;
+    float max_btn_max_x = 0.0f;
+    bool  max_btn_hovered = false;
 
     // Inline renaming in sidebar
     uint64_t renaming_resource_id = 0;

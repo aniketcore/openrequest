@@ -109,10 +109,8 @@ target_link_libraries(openrequest_core PUBLIC
 # ---------------------------------------------------------------------------
 add_library(openrequest_ui SHARED
   src/ui/ui_entry.cpp
-  src/ui/ui_loop.cpp
   src/ui/tab.cpp
   src/ui/sidebar.cpp
-  src/ui/native_window.cpp
   src/ui/stb_image.cpp
   src/ui/http_resource_ui.cpp
 
@@ -137,6 +135,7 @@ target_include_directories(openrequest_ui PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/src/core
   ${CMAKE_CURRENT_SOURCE_DIR}/src/core/resource
   ${CMAKE_CURRENT_SOURCE_DIR}/src/ui
+  ${CMAKE_CURRENT_SOURCE_DIR}/ext/cr
   ${CMAKE_CURRENT_SOURCE_DIR}/${IMGUI_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/${IMGUI_DIR}/backends
   ${CMAKE_CURRENT_SOURCE_DIR}/${IMGUI_DIR}/misc/cpp
@@ -169,8 +168,6 @@ endif()
 # ---------------------------------------------------------------------------
 add_executable(openrequest
   src/app/main.cpp
-  src/app/ui_loader.cpp
-  src/ui/native_window.cpp
   ${APP_RESOURCES}
   ${IMGUI_DIR}/backends/imgui_impl_sdl3.cpp
   ${IMGUI_DIR}/backends/imgui_impl_sdlgpu3.cpp
@@ -189,6 +186,7 @@ target_include_directories(openrequest PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src/core/resource
   ${CMAKE_CURRENT_SOURCE_DIR}/src/ui
   ${CMAKE_CURRENT_SOURCE_DIR}/src/app
+  ${CMAKE_CURRENT_SOURCE_DIR}/ext/cr
   ${CMAKE_CURRENT_SOURCE_DIR}/${IMGUI_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/${IMGUI_DIR}/backends
   ${CMAKE_CURRENT_SOURCE_DIR}/${IMGUI_DIR}/misc/cpp

@@ -108,7 +108,7 @@ namespace UI
 
         ImGui::Text("HTTP Request Settings");
         ImGui::Spacing();
-        ImGui::InputText("URLLLLLLLL", &http->url, 0, nullptr, nullptr);
+        ImGui::InputText("URL", &http->url, 0, nullptr, nullptr);
 
         const char* methods[] = {"GET", "POST", "PUT", "DELETE"};
         int current_method = static_cast<int>(http->method);

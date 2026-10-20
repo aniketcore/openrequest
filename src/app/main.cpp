@@ -1,8 +1,27 @@
-#include "ui_loader.h"
+#include <iostream>
+#include <filesystem>
+#include <SDL3/SDL.h>
+
+#define CR_HOST CR_UNSAFE
+#define CR_DEBUG
+#include "cr.h"
+
 #include "app_state.h"
 #include "imgui_helpers.h"
-#include <SDL3/SDL.h>
-#include <iostream>
+#include "host_data.h"
+
+static std::filesystem::path GetExecutableDir()
+{
+#if defined(_WIN32)
+    char buffer[MAX_PATH];
+    GetModuleFileNameA(NULL, buffer, MAX_PATH);
+    return std::filesystem::path(buffer).parent_path();
+#elif defined(__linux__)
+    return std::filesystem::canonical("/proc/self/exe").parent_path();
+#else
+    return std::filesystem::current_path();
+#endif
+}
 
 int main(int argc, char* argv[])
 {
@@ -14,28 +33,35 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    // Context info for the UI dynamic library
-    UIContextInfo context_info;
-    context_info.imgui_context = ImGui::GetCurrentContext();
-    context_info.window = window;
-    context_info.gpu_device = UI::GPU::g_GpuDevice;
-    context_info.mono_font = UI::GPU::g_MonoFont;
-    context_info.main_scale = main_scale;
+    HostData host_data;
+    host_data.imgui_context = ImGui::GetCurrentContext();
+    host_data.window = window;
+    host_data.gpu_device = UI::GPU::g_GpuDevice;
+    host_data.mono_font = UI::GPU::g_MonoFont;
+    host_data.state = &UI::g_AppState;
+    host_data.main_scale = main_scale;
 
-    // Initialize UI dynamic library loader
-    UILoader ui_loader;
-    std::filesystem::path app_dir = UILoader::GetExecutableDir();
-    if (!ui_loader.Initialize(app_dir))
+#if defined(_WIN32)
+    const std::string lib_name = "openrequest_ui.dll";
+#elif defined(__APPLE__)
+    const std::string lib_name = "libopenrequest_ui.dylib";
+#else
+    const std::string lib_name = "libopenrequest_ui.so";
+#endif
+
+    std::filesystem::path plugin_path = GetExecutableDir() / lib_name;
+
+    cr_plugin ctx = {};
+    ctx.userdata = &host_data;
+    if (!cr_plugin_open(ctx, plugin_path.string().c_str()))
     {
-        std::cerr << "Failed to load UI dynamic library from " << app_dir << std::endl;
+        std::cerr << "[CR] Failed to open plugin from " << plugin_path << std::endl;
         UI::GPU::Cleanup(window);
         return 1;
     }
-    ui_loader.CallInit(context_info);
 
     ImVec4 clear_color = ImVec4(0.1f, 0.1f, 0.12f, 1.00f);
 
-    // Main frame loop
     bool done = false;
     while (!done)
     {
@@ -57,25 +83,34 @@ int main(int argc, char* argv[])
             continue;
         }
 
-        // Check for dynamic library hot-reload (auto on build or manual Ctrl+R / F5)
-        ImGuiIO& io = ImGui::GetIO();
-        bool reload_hotkey = (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_R)) || ImGui::IsKeyPressed(ImGuiKey_F5);
-        ui_loader.CheckAndReload(context_info, reload_hotkey);
-
         // Start new ImGui frame
         ImGui_ImplSDLGPU3_NewFrame();
         ImGui_ImplSDL3_NewFrame();
         ImGui::NewFrame();
 
-        // Delegate rendering to UI dynamic library
-        ui_loader.CallRenderFrame(&UI::g_AppState, window);
+        // cr_plugin_update checks timestamps, copies/reloads, and calls cr_main with CR_STEP
+        int rc = cr_plugin_update(ctx);
+        if (rc < 0)
+        {
+            static int last_rc = 0;
+            if (last_rc != rc)
+            {
+                std::cerr << "[CR] Plugin returned error or requested close: " << rc << std::endl;
+                last_rc = rc;
+            }
+        }
+        else
+        {
+            static int last_rc = 0;
+            last_rc = 0;
+        }
 
         // End frame and present via SDL_GPU
         ImGui::Render();
         UI::GPU::RenderFrame(window, ImGui::GetDrawData(), clear_color);
     }
 
-    ui_loader.Unload();
+    cr_plugin_close(ctx);
     UI::GPU::Cleanup(window);
     return 0;
 }

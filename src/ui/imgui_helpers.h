@@ -15,8 +15,8 @@
 
 namespace UI::GPU
 {
-    static SDL_GPUDevice *g_GpuDevice = nullptr;
-    static ImFont *g_MonoFont = nullptr;
+    inline SDL_GPUDevice *g_GpuDevice = nullptr;
+    inline ImFont *g_MonoFont = nullptr;
 
     static void ApplyModernTheme()
     {
