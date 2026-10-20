@@ -98,6 +98,167 @@ namespace
         }
         SetupEditorContextMenu(editor);
     }
+
+    ImVec4 GetMethodColor(HTTP::Method method)
+    {
+        switch (method)
+        {
+            case HTTP::GET:    return ImVec4(0.18f, 0.80f, 0.44f, 1.0f); // Bright Green
+            case HTTP::POST:   return ImVec4(0.85f, 0.72f, 0.38f, 1.0f); // Warm Gold / Yellow (from screenshot: rgb(205, 181, 109))
+            case HTTP::PUT:    return ImVec4(0.28f, 0.62f, 0.95f, 1.0f); // Blue
+            case HTTP::DELETE: return ImVec4(0.92f, 0.32f, 0.32f, 1.0f); // Red
+            default:           return ImVec4(0.70f, 0.70f, 0.70f, 1.0f);
+        }
+    }
+
+    const char* GetMethodName(HTTP::Method method)
+    {
+        switch (method)
+        {
+            case HTTP::GET:    return "GET";
+            case HTTP::POST:   return "POST";
+            case HTTP::PUT:    return "PUT";
+            case HTTP::DELETE: return "DELETE";
+            default:           return "GET";
+        }
+    }
+
+    void DrawRequestBar(HttpResource* http)
+    {
+        const float bar_h = 34.0f;
+        const float send_btn_w = 96.0f;
+        const float spacing = 8.0f;
+        const float avail_w = ImGui::GetContentRegionAvail().x;
+        const float url_box_w = std::max(120.0f, avail_w - send_btn_w - spacing);
+
+        ImDrawList* draw_list = ImGui::GetWindowDrawList();
+        ImVec2 start_pos = ImGui::GetCursorScreenPos();
+        ImVec2 box_max = ImVec2(start_pos.x + url_box_w, start_pos.y + bar_h);
+
+        // Reserve space in layout
+        ImGui::Dummy(ImVec2(avail_w, bar_h));
+
+        // 1. Draw outer background & subtle border for the unified URL input bar
+        ImU32 bg_col = ImGui::GetColorU32(ImVec4(0.12f, 0.12f, 0.13f, 1.0f));       // #1f1f21
+        ImU32 border_col = ImGui::GetColorU32(ImVec4(0.24f, 0.24f, 0.26f, 1.0f));   // #3e3e42
+        draw_list->AddRectFilled(start_pos, box_max, bg_col, 5.0f);
+        draw_list->AddRect(start_pos, box_max, border_col, 5.0f);
+
+        // 2. Method button inside the box
+        const char* current_method_name = GetMethodName(http->method);
+        ImVec4 method_col = GetMethodColor(http->method);
+
+        ImGui::SetCursorScreenPos(ImVec2(start_pos.x + 4.0f, start_pos.y + 2.0f));
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(1, 1, 1, 0.06f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(1, 1, 1, 0.12f));
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8.0f, (bar_h - 4.0f - ImGui::GetFontSize()) * 0.5f));
+
+        std::string method_btn_str = std::string(current_method_name) + "   v##method_btn";
+        ImGui::PushStyleColor(ImGuiCol_Text, method_col);
+        if (ImGui::Button(method_btn_str.c_str()))
+        {
+            ImGui::OpenPopup("##method_dropdown_popup");
+        }
+        ImGui::PopStyleColor(); // ImGuiCol_Text
+
+        float method_btn_w = ImGui::GetItemRectSize().x;
+
+        if (ImGui::BeginPopup("##method_dropdown_popup"))
+        {
+            HTTP::Method all_methods[] = { HTTP::GET, HTTP::POST, HTTP::PUT, HTTP::DELETE };
+            for (auto m : all_methods)
+            {
+                ImVec4 col = GetMethodColor(m);
+                ImGui::PushStyleColor(ImGuiCol_Text, col);
+                if (ImGui::MenuItem(GetMethodName(m), nullptr, http->method == m))
+                {
+                    http->method = m;
+                }
+                ImGui::PopStyleColor();
+            }
+            ImGui::EndPopup();
+        }
+        ImGui::PopStyleVar(); // FramePadding
+        ImGui::PopStyleColor(3); // Button colors
+
+        // 3. Vertical divider line
+        float divider_x = start_pos.x + 4.0f + method_btn_w + 4.0f;
+        draw_list->AddLine(
+            ImVec2(divider_x, start_pos.y + 6.0f),
+            ImVec2(divider_x, start_pos.y + bar_h - 6.0f),
+            border_col, 1.0f);
+
+        // 4. URL text input
+        float url_input_x = divider_x + 6.0f;
+        float url_input_w = std::max(20.0f, box_max.x - url_input_x - 6.0f);
+        ImGui::SetCursorScreenPos(ImVec2(url_input_x, start_pos.y + 2.0f));
+        ImGui::SetNextItemWidth(url_input_w);
+
+        ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0, 0, 0, 0));
+        ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0, 0, 0, 0));
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(4.0f, (bar_h - 4.0f - ImGui::GetFontSize()) * 0.5f));
+        bool enter_pressed = ImGui::InputTextWithHint("##url_input", "Enter URL or paste text", &http->url, ImGuiInputTextFlags_EnterReturnsTrue);
+        ImGui::PopStyleVar();
+        ImGui::PopStyleColor(2);
+
+        // 5. Send / Cancel button on the right
+        bool is_running = http->IsRunning();
+        ImVec2 btn_pos = ImVec2(start_pos.x + url_box_w + spacing, start_pos.y);
+        ImGui::SetCursorScreenPos(btn_pos);
+
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 5.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8.0f, (bar_h - ImGui::GetFontSize()) * 0.5f));
+
+        bool send_clicked = false;
+        if (is_running)
+        {
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.82f, 0.22f, 0.22f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.92f, 0.30f, 0.30f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.72f, 0.18f, 0.18f, 1.0f));
+            if (ImGui::Button("Cancel##send_btn", ImVec2(send_btn_w, bar_h)))
+            {
+                http->CancelRequest();
+            }
+            ImGui::PopStyleColor(3);
+        }
+        else
+        {
+            // Blue Send button matching screenshot
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.18f, 0.40f, 0.80f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.24f, 0.48f, 0.88f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.14f, 0.35f, 0.72f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, 1.0f));
+
+            if (ImGui::Button("Send   v##send_btn", ImVec2(send_btn_w, bar_h)) || enter_pressed)
+            {
+                send_clicked = true;
+            }
+            // Draw subtle split-button divider inside Send button
+            draw_list->AddLine(
+                ImVec2(btn_pos.x + send_btn_w - 24.0f, btn_pos.y + 6.0f),
+                ImVec2(btn_pos.x + send_btn_w - 24.0f, btn_pos.y + bar_h - 6.0f),
+                ImGui::GetColorU32(ImVec4(0.12f, 0.30f, 0.65f, 0.7f)), 1.0f);
+
+            ImGui::PopStyleColor(4);
+        }
+
+        ImGui::PopStyleVar(2); // FrameRounding, FramePadding
+
+        // Restore cursor position for items below the bar
+        ImGui::SetCursorScreenPos(ImVec2(start_pos.x, start_pos.y + bar_h + spacing));
+
+        if (send_clicked && !is_running)
+        {
+            if (http->requestEditor)
+            {
+                http->body = http->requestEditor->GetText();
+                http->req.body = http->body;
+                http->requestEditorVersion = http->requestEditor->GetUndoIndex();
+            }
+            http->SendRequest();
+        }
+    }
 }
 
 namespace UI
@@ -165,15 +326,11 @@ namespace UI
         ImGui::BeginChild("##request_panel", ImVec2(0.0f, http->requestHeight), ImGuiChildFlags_Borders, ImGuiWindowFlags_None);
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8.0f, 8.0f));
 
-        ImGui::Text("HTTP Request Settings");
-        ImGui::Spacing();
-        ImGui::InputText("URL", &http->url, 0, nullptr, nullptr);
+        DrawRequestBar(http);
 
-        const char* methods[] = {"GET", "POST", "PUT", "DELETE"};
-        int current_method = static_cast<int>(http->method);
-        if (ImGui::Combo("Method", &current_method, methods, IM_ARRAYSIZE(methods)))
+        if (http->IsRunning())
         {
-            http->method = static_cast<HTTP::Method>(current_method);
+            ImGui::TextColored(ImVec4(0.85f, 0.85f, 0.4f, 1.0f), "Sending request...");
         }
 
         ImGui::Spacing();
@@ -232,36 +389,6 @@ namespace UI
             http->requestEditorVersion = http->requestEditor->GetUndoIndex();
             http->req.body = http->requestEditor->GetText();
             http->body = http->req.body;
-        }
-        ImGui::Spacing();
-
-        bool is_running = http->IsRunning();
-        if (is_running)
-        {
-            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.8f, 0.2f, 0.2f, 1.0f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.9f, 0.3f, 0.3f, 1.0f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.7f, 0.15f, 0.15f, 1.0f));
-            if (ImGui::Button("Cancel Request##send_btn"))
-            {
-                http->CancelRequest();
-            }
-            ImGui::PopStyleColor(3);
-
-            ImGui::SameLine();
-            ImGui::TextColored(ImVec4(0.85f, 0.85f, 0.4f, 1.0f), "Sending request...");
-        }
-        else
-        {
-            if (ImGui::Button("Send Request##send_btn"))
-            {
-                if (http->requestEditor)
-                {
-                    http->body = http->requestEditor->GetText();
-                    http->req.body = http->body;
-                    http->requestEditorVersion = http->requestEditor->GetUndoIndex();
-                }
-                http->SendRequest();
-            }
         }
         ImGui::PopStyleVar();
         ImGui::EndChild();
