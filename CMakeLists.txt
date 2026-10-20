@@ -53,9 +53,18 @@ if(NOT TARGET glaze::glaze)
 endif()
 
 
-# Gather all source files
-file(GLOB_RECURSE sources CONFIGURE_DEPENDS src/*.cpp src/**/*.cpp)
-list(FILTER sources EXCLUDE REGEX "gtk_glarea_demo\\.cpp$")
+# Binary output directories (keep executable and shared libraries together)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+
+# Set RPATH so executable finds sibling shared libraries ($ORIGIN)
+set(CMAKE_INSTALL_RPATH "$ORIGIN")
+set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+
+if(MSVC)
+  add_compile_options(/utf-8)
+endif()
 
 # Windows Application Resource (Executable Icon)
 set(APP_RESOURCES "")
@@ -63,9 +72,50 @@ if(WIN32 AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/assets/openrequest.rc")
   set(APP_RESOURCES "${CMAKE_CURRENT_SOURCE_DIR}/assets/openrequest.rc")
 endif()
 
-add_executable(openrequest
-  ${sources}
-  ${APP_RESOURCES}
+# ---------------------------------------------------------------------------
+# 1. Core Shared Library (Domain, State, Networking, Serialization)
+# ---------------------------------------------------------------------------
+add_library(openrequest_core SHARED
+  src/core/collection.cpp
+  src/core/app_state.cpp
+  src/core/resource/http_resource.cpp
+)
+
+set_target_properties(openrequest_core PROPERTIES
+  WINDOWS_EXPORT_ALL_SYMBOLS ON
+)
+
+target_include_directories(openrequest_core PUBLIC
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/core
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/core/resource
+  ${CMAKE_CURRENT_SOURCE_DIR}/${IMGUI_DIR}
+  ${CMAKE_CURRENT_SOURCE_DIR}/${IMGUI_COLOR_TEXT_EDIT_DIR}
+)
+
+target_compile_definitions(openrequest_core PUBLIC
+  NOMINMAX
+  WIN32_LEAN_AND_MEAN
+  OPENREQUEST_CORE_BUILD
+)
+
+target_link_libraries(openrequest_core PUBLIC
+  CURL::libcurl
+  glaze::glaze
+)
+
+# ---------------------------------------------------------------------------
+# 2. UI Dynamic Library (SDL3, SDL_GPU, ImGui, Rendering, Widgets)
+# ---------------------------------------------------------------------------
+add_library(openrequest_ui SHARED
+  src/ui/ui_entry.cpp
+  src/ui/ui_loop.cpp
+  src/ui/tab.cpp
+  src/ui/sidebar.cpp
+  src/ui/native_window.cpp
+  src/ui/stb_image.cpp
+  src/ui/http_resource_ui.cpp
+
   ${IMGUI_DIR}/backends/imgui_impl_sdl3.cpp
   ${IMGUI_DIR}/backends/imgui_impl_sdlgpu3.cpp
   ${IMGUI_DIR}/imgui.cpp
@@ -78,16 +128,70 @@ add_executable(openrequest
   ${IMGUI_COLOR_TEXT_EDIT_DIR}/TextEditor.cpp
 )
 
-target_include_directories(openrequest PRIVATE
+set_target_properties(openrequest_ui PROPERTIES
+  WINDOWS_EXPORT_ALL_SYMBOLS ON
+)
+
+target_include_directories(openrequest_ui PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/src
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/core
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/core/resource
   ${CMAKE_CURRENT_SOURCE_DIR}/src/ui
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/app
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/resource
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/collection
   ${CMAKE_CURRENT_SOURCE_DIR}/${IMGUI_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/${IMGUI_DIR}/backends
   ${CMAKE_CURRENT_SOURCE_DIR}/${IMGUI_DIR}/misc/cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/${IMGUI_COLOR_TEXT_EDIT_DIR}
+  ${CMAKE_CURRENT_SOURCE_DIR}/assets
+)
+
+target_compile_definitions(openrequest_ui PUBLIC
+  NOMINMAX
+  WIN32_LEAN_AND_MEAN
+  OPENREQUEST_UI_BUILD
+  FONT_PATH=\"${CMAKE_CURRENT_SOURCE_DIR}/ext/imgui/misc/fonts/Roboto-Medium.ttf\"
+  MONO_FONT_PATH=\"${CMAKE_CURRENT_SOURCE_DIR}/ext/imgui/misc/fonts/Cousine-Regular.ttf\"
+  ASSETS_PATH=\"${CMAKE_CURRENT_SOURCE_DIR}/assets/\"
+  EDITOR_FONT_SIZE=16
+)
+
+target_link_libraries(openrequest_ui PUBLIC
+  openrequest_core
+  SDL3::SDL3
+  Freetype::Freetype
+)
+
+if(WIN32)
+  target_link_libraries(openrequest_ui PRIVATE dwmapi)
+endif()
+
+# ---------------------------------------------------------------------------
+# 3. Host Executable (Entry point, Window/GPU supervisor & Hot-Reloader)
+# ---------------------------------------------------------------------------
+add_executable(openrequest
+  src/app/main.cpp
+  src/app/ui_loader.cpp
+  src/ui/native_window.cpp
+  ${APP_RESOURCES}
+  ${IMGUI_DIR}/backends/imgui_impl_sdl3.cpp
+  ${IMGUI_DIR}/backends/imgui_impl_sdlgpu3.cpp
+  ${IMGUI_DIR}/imgui.cpp
+  ${IMGUI_DIR}/imgui_draw.cpp
+  ${IMGUI_DIR}/imgui_demo.cpp
+  ${IMGUI_DIR}/imgui_tables.cpp
+  ${IMGUI_DIR}/imgui_widgets.cpp
+  ${IMGUI_DIR}/misc/cpp/imgui_stdlib.cpp
+  ${IMGUI_DIR}/misc/freetype/imgui_freetype.cpp
+)
+
+target_include_directories(openrequest PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/core
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/core/resource
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/ui
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/app
+  ${CMAKE_CURRENT_SOURCE_DIR}/${IMGUI_DIR}
+  ${CMAKE_CURRENT_SOURCE_DIR}/${IMGUI_DIR}/backends
+  ${CMAKE_CURRENT_SOURCE_DIR}/${IMGUI_DIR}/misc/cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/assets
 )
 
@@ -100,6 +204,20 @@ target_compile_definitions(openrequest PRIVATE
   EDITOR_FONT_SIZE=16
 )
 
+target_link_libraries(openrequest PRIVATE
+  openrequest_core
+  SDL3::SDL3
+  Freetype::Freetype
+  ${CMAKE_DL_LIBS}
+)
+
+if(WIN32)
+  target_link_libraries(openrequest PRIVATE dwmapi)
+endif()
+
+# Ensure openrequest_ui is compiled whenever openrequest is built
+add_dependencies(openrequest openrequest_ui)
+
 # Copy assets next to executable in build directory
 add_custom_command(TARGET openrequest POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_directory
@@ -107,26 +225,13 @@ add_custom_command(TARGET openrequest POST_BUILD
   $<TARGET_FILE_DIR:openrequest>/assets
 )
 
-if(MSVC)
-  target_compile_options(openrequest PRIVATE /utf-8)
-endif()
-
-target_link_libraries(openrequest PRIVATE
-  SDL3::SDL3
-  CURL::libcurl
-  Freetype::Freetype
-  glaze::glaze
-)
-
-if(WIN32)
-  target_link_libraries(openrequest PRIVATE dwmapi)
-endif()
-
 # Installation
 include(GNUInstallDirs)
 
-install(TARGETS openrequest
+install(TARGETS openrequest openrequest_ui openrequest_core
   RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
   BUNDLE DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 

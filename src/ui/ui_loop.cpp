@@ -4,6 +4,7 @@
 #include "imgui_helpers.h"
 #include "sidebar.h"
 #include "tab.h"
+#include "app_state.h"
 
 namespace UI {
 
@@ -87,25 +88,28 @@ int RunUILoop()
             ImGui::DockBuilderSplitNode(dock_main, ImGuiDir_Left, 0.22f, &dock_left, &dock_main);
 
             ImGui::DockBuilderDockWindow("Collections", dock_left);
-            for (auto& tab : g_Tabs)
+            for (auto& tab : g_AppState.tabs)
             {
                 char win_title[128];
                 snprintf(win_title, sizeof(win_title), "%s###tab_%d", tab->name.c_str(), tab->id);
                 ImGui::DockBuilderDockWindow(win_title, dock_main);
             }
             ImGui::DockBuilderFinish(dockspace_id);
-            g_MainDockId = dock_main;
+            g_AppState.main_dock_id = dock_main;
         }
-        else if (g_MainDockId == 0)
+        else if (g_AppState.main_dock_id == 0)
         {
             ImGuiDockNode* central = ImGui::DockBuilderGetCentralNode(dockspace_id);
             if (central)
-                g_MainDockId = central->ID;
+                g_AppState.main_dock_id = central->ID;
         }
 
         ImGui::DockSpaceOverViewport(dockspace_id, viewport, ImGuiDockNodeFlags_PassthruCentralNode);
 
-        RenderSidebar();
+        if (g_AppState.show_sidebar)
+        {
+            RenderSidebar();
+        }
         DrawTabContent();
 
         // End Frame & Submit Draw Calls
@@ -119,3 +123,8 @@ int RunUILoop()
 }
 
 } // namespace UI
+
+extern "C" OPENREQUEST_UI_API int OpenRequest_RunUI()
+{
+    return UI::RunUILoop();
+}

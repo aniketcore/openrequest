@@ -31,7 +31,15 @@ public:
 
     ResourceType GetType() const override { return ResourceType::HTTP; }
     void Draw() override;
+    void SendRequest();
 };
+
+namespace UI {
+    using HttpResourceDrawerFn = void (*)(HttpResource*);
+    extern HttpResourceDrawerFn g_HttpResourceDrawer;
+    void RegisterHttpResourceDrawer(HttpResourceDrawerFn fn);
+    void DrawHttpResource(HttpResource* http);
+}
 
 #ifdef DELETE
 #undef DELETE

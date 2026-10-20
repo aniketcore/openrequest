@@ -9,22 +9,11 @@
 #include <imgui_stdlib.h>
 #include "imgui_helpers.h"
 #include <glaze/yaml.hpp>
+
 namespace UI
 {
     namespace
     {
-        Tab* GetActiveTab()
-        {
-            for (auto& tab : g_Tabs)
-            {
-                if (tab->id == g_ActiveTabId)
-                {
-                    return tab.get();
-                }
-            }
-            return nullptr;
-        }
-
         void DrawWindowControls(SDL_Window* window)
         {
             const float font_size = ImGui::GetFontSize();
@@ -152,30 +141,51 @@ namespace UI
         // 2. Menus
         if (ImGui::BeginMenu("File"))
         {
-            ImGui::MenuItem("Open");
-            ImGui::MenuItem("Save");
+            if (ImGui::MenuItem("Open Collection", "Ctrl+O"))
+            {
+                g_AppState.LoadCollection();
+            }
+            if (ImGui::MenuItem("Save Collection", "Ctrl+S"))
+            {
+                g_AppState.SaveCollection();
+            }
+            ImGui::Separator();
+            if (ImGui::MenuItem("Exit", "Alt+F4"))
+            {
+                SDL_Event event = {};
+                event.type = SDL_EVENT_QUIT;
+                SDL_PushEvent(&event);
+            }
             ImGui::EndMenu();
         }
 
         ImGui::SameLine();
         if (ImGui::BeginMenu("Edit"))
         {
-            ImGui::MenuItem("Copy");
-            ImGui::MenuItem("Paste");
+            ImGui::MenuItem("Copy", "Ctrl+C");
+            ImGui::MenuItem("Paste", "Ctrl+V");
             ImGui::EndMenu();
         }
 
         ImGui::SameLine();
         if (ImGui::BeginMenu("View"))
         {
-            ImGui::MenuItem("Sidebar");
+            ImGui::MenuItem("Sidebar", nullptr, &g_AppState.show_sidebar);
             ImGui::EndMenu();
         }
 
         ImGui::SameLine();
         if (ImGui::BeginMenu("Run"))
         {
-            ImGui::MenuItem("Send Request");
+            if (ImGui::MenuItem("Send Request", "Ctrl+Enter"))
+            {
+                Tab* active = g_AppState.GetActiveTab();
+                if (active && active->resource && active->resource->GetType() == ResourceType::HTTP)
+                {
+                    auto* http = static_cast<HttpResource*>(active->resource.get());
+                    http->SendRequest();
+                }
+            }
             ImGui::EndMenu();
         }
 
@@ -203,7 +213,7 @@ namespace UI
         DrawWindowControls(window);
 
         // 5. Centered Document/Tab Title (rendered directly in the middle of the title bar)
-        Tab* active_tab = GetActiveTab();
+        Tab* active_tab = g_AppState.GetActiveTab();
         std::string tab_name = active_tab ? active_tab->name : "";
         ImDrawList* dl = ImGui::GetWindowDrawList();
         ImVec2 bar_p0 = ImGui::GetWindowPos();
@@ -229,81 +239,40 @@ namespace UI
         ImGui::EndMainMenuBar();
     }
 
-    // Helper function to initialize global tabs vector
-    std::vector<std::unique_ptr<Tab>> InitializeTabs()
-    {
-        std::vector<std::unique_ptr<Tab>> tabs;
-        auto res = std::make_shared<HttpResource>();
-        res->id = UI::GenerateUID();
-        res->name = "Tab 1";
-        g_Resources.push_back(res);
-        tabs.push_back(std::make_unique<Tab>(1, "Tab 1", res));
-        return tabs;
-    }
-
-    std::vector<std::unique_ptr<Tab>> g_Tabs = InitializeTabs();
-    int g_ActiveTabId = 1;
-    int g_NextTabId = 2;
-    int g_SelectedTopTab = 0;
-
-    ImGuiID g_MainDockId = 0;
-    static int g_TabToFocus = -1;
+    // Global active tab state references bound directly to g_AppState
+    std::vector<std::unique_ptr<Tab>>& g_Tabs = g_AppState.tabs;
+    int& g_ActiveTabId = g_AppState.active_tab_id;
+    int& g_NextTabId = g_AppState.next_tab_id;
+    int& g_SelectedTopTab = g_AppState.selected_top_tab;
+    ImGuiID& g_MainDockId = g_AppState.main_dock_id;
 
     void FocusTab(int tab_id)
     {
-        g_ActiveTabId = tab_id;
-        g_TabToFocus = tab_id;
+        g_AppState.FocusTab(tab_id);
     }
 
     void CloseTab(int tab_id)
     {
-        for (auto it = g_Tabs.begin(); it != g_Tabs.end(); ++it)
-        {
-            if ((*it)->id == tab_id)
-            {
-                g_Tabs.erase(it);
-                if (g_ActiveTabId == tab_id)
-                {
-                    g_ActiveTabId = g_Tabs.empty() ? -1 : g_Tabs.back()->id;
-                    if (g_ActiveTabId != -1)
-                        FocusTab(g_ActiveTabId);
-                }
-                break;
-            }
-        }
+        g_AppState.CloseTab(tab_id);
     }
 
     void OpenOrFocusResource(const std::shared_ptr<Resource>& res)
     {
-        if (!res) return;
-
-        for (auto& tab : g_Tabs)
-        {
-            if (tab->resource == res)
-            {
-                FocusTab(tab->id);
-                return;
-            }
-        }
-
-        int new_id = g_NextTabId++;
-        g_Tabs.push_back(std::make_unique<Tab>(new_id, res->name, res));
-        FocusTab(new_id);
+        g_AppState.OpenOrFocusResource(res);
     }
 
     void DrawTabContent()
     {
-        if (g_Tabs.empty())
+        if (g_AppState.tabs.empty())
         {
             ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(16.0f, 16.0f));
-            if (g_MainDockId != 0)
-                ImGui::SetNextWindowDockID(g_MainDockId, ImGuiCond_FirstUseEver);
+            if (g_AppState.main_dock_id != 0)
+                ImGui::SetNextWindowDockID(g_AppState.main_dock_id, ImGuiCond_FirstUseEver);
 
             if (ImGui::Begin("Workspace"))
             {
                 ImGui::Text("No open tabs.");
                 ImGui::Text("Click a resource in the sidebar to open it, or '+' to create one.");
-
             }
             ImGui::End();
             ImGui::PopStyleVar();
@@ -312,19 +281,19 @@ namespace UI
 
         int tab_to_close = -1;
 
-        for (size_t i = 0; i < g_Tabs.size(); ++i)
+        for (size_t i = 0; i < g_AppState.tabs.size(); ++i)
         {
-            auto& tab = g_Tabs[i];
+            auto& tab = g_AppState.tabs[i];
             char window_title[128];
             snprintf(window_title, sizeof(window_title), "%s###tab_%d", tab->name.c_str(), tab->id);
 
-            if (g_MainDockId != 0)
-                ImGui::SetNextWindowDockID(g_MainDockId, ImGuiCond_FirstUseEver);
+            if (g_AppState.main_dock_id != 0)
+                ImGui::SetNextWindowDockID(g_AppState.main_dock_id, ImGuiCond_FirstUseEver);
 
-            if (g_TabToFocus == tab->id)
+            if (g_AppState.tab_to_focus == tab->id)
             {
                 ImGui::SetNextWindowFocus();
-                g_TabToFocus = -1;
+                g_AppState.tab_to_focus = -1;
             }
 
             bool open = true;
@@ -333,12 +302,12 @@ namespace UI
             {
                 if (ImGui::IsWindowDocked())
                 {
-                    g_MainDockId = ImGui::GetWindowDockID();
+                    g_AppState.main_dock_id = ImGui::GetWindowDockID();
                 }
 
                 if (ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows))
                 {
-                    g_ActiveTabId = tab->id;
+                    g_AppState.active_tab_id = tab->id;
                 }
                 tab->Draw();
             }
@@ -353,7 +322,7 @@ namespace UI
 
         if (tab_to_close != -1)
         {
-            CloseTab(tab_to_close);
+            g_AppState.CloseTab(tab_to_close);
         }
     }
-} // namespace UI
+}
