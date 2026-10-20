@@ -17,6 +17,7 @@ public:
     
     HTTP::Engine eng;
     HTTP::Request req;
+    std::shared_ptr<HTTP::RequestHandle> active_handle;
     std::unique_ptr<TextEditor> requestEditor;
     std::unique_ptr<TextEditor> responseEditor;
     std::string lastResponseText;
@@ -32,6 +33,10 @@ public:
     ResourceType GetType() const override { return ResourceType::HTTP; }
     void Draw() override;
     void SendRequest();
+    void CancelRequest();
+    bool IsRunning() const {
+        return active_handle && active_handle->is_running.load(std::memory_order_relaxed);
+    }
 };
 
 namespace UI {

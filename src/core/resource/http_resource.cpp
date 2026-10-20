@@ -12,6 +12,9 @@ namespace UI {
 
 void HttpResource::SendRequest()
 {
+    if (IsRunning())
+        return;
+
     req.url = this->url;
     req.method = this->method;
     req.gotresponse = false;
@@ -26,7 +29,15 @@ void HttpResource::SendRequest()
         }
     }
 
-    eng.dispatchrequest(&req);
+    active_handle = eng.dispatchrequest(&req);
+}
+
+void HttpResource::CancelRequest()
+{
+    if (active_handle)
+    {
+        active_handle->Cancel();
+    }
 }
 
 void HttpResource::Draw()

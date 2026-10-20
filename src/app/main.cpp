@@ -9,6 +9,7 @@
 #include "app_state.h"
 #include "imgui_helpers.h"
 #include "host_data.h"
+#include "httpengine.h"
 
 static std::filesystem::path GetExecutableDir()
 {
@@ -59,6 +60,8 @@ int main(int argc, char* argv[])
         UI::GPU::Cleanup(window);
         return 1;
     }
+
+    HTTP::Init();
 
     ImVec4 clear_color = ImVec4(0.1f, 0.1f, 0.12f, 1.00f);
 
@@ -111,6 +114,7 @@ int main(int argc, char* argv[])
     }
 
     cr_plugin_close(ctx);
+    HTTP::Free();
     UI::GPU::Cleanup(window);
     return 0;
 }
