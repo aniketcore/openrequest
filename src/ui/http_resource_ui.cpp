@@ -146,7 +146,7 @@ namespace UI
 
         ImFont* editorFont = UI::GPU::g_MonoFont ? UI::GPU::g_MonoFont : ImGui::GetFont();
         ImGui::PushFont(editorFont);
-        http->requestEditor->Render("##request_body_editor", ImVec2(-1.0f, 160.0f), true);
+        http->requestEditor->Render("##request_body_editor", ImVec2(-1.0f, 160.0f), ImGuiChildFlags_Borders);
         ImGui::PopFont();
 
         http->req.body = http->requestEditor->GetText();
@@ -233,7 +233,7 @@ namespace UI
                 http->responseEditor->SetReadOnlyEnabled(responseReadOnly);
                 ImFont* editorFont = UI::GPU::g_MonoFont ? UI::GPU::g_MonoFont : ImGui::GetFont();
                 ImGui::PushFont(editorFont);
-                http->responseEditor->Render("##response_editor", ImGui::GetContentRegionAvail(), true);
+                http->responseEditor->Render("##response_editor", ImGui::GetContentRegionAvail(), ImGuiChildFlags_Borders);
                 ImGui::PopFont();
             }
             else

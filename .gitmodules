@@ -6,7 +6,7 @@
 	url = https://github.com/glfw/glfw
 [submodule "ext/ImGuiColorTextEdit"]
 	path = ext/ImGuiColorTextEdit
-	url = https://github.com/pthom/ImGuiColorTextEdit
+	url = https://github.com/goossens/ImGuiColorTextEdit
 [submodule "ext/glaze"]
 	path = ext/glaze
 	url = https://github.com/stephenberry/glaze
